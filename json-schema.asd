@@ -18,12 +18,13 @@
 
 
 (defsystem json-schema/test
-  :depends-on ("cl-arrows"
-               "json-schema"
+  :depends-on ("json-schema"
 	       "rove")
   :pathname "t"
   :components ((:file "json-schema-test-case-helper")
-               (:file "draft2019-09"))
+               (:file "draft2019-09")
+               (:file "draft7")
+               (:file "draft6"))
   :perform (test-op (op c)
                     (declare (ignore op))
 		    (uiop:symbol-call :rove :run c)))
