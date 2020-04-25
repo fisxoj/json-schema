@@ -6,8 +6,12 @@
   :license "LGPL"
   :version "0.0.1"
   :pathname "src"
-  :components ((:file "json-schema"))
-  :depends-on ("dexador"
+  :components ((:file "parse")
+               (:file "types")
+               (:file "reference")
+               (:file "json-schema"))
+  :depends-on ("cl-arrows"
+               "dexador"
                "function-cache"
                "jonathan"
                "sanity-clause"

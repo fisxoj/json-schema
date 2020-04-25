@@ -10,7 +10,7 @@
 
 
 (defun valid-p (spec)
-  (gethash "valid" spec))
+  (not (eq (gethash "valid" spec) :false)))
 
 
 (defun description-of (spec)
@@ -43,7 +43,7 @@
 (defun transform-spec-to-tests (spec-pathname)
   (-> spec-pathname
       read-file-into-string
-      (jojo:parse :as :hash-table)))
+      json-schema.parse:parse))
 
 
 (defmacro test-cases-from-file (name)
