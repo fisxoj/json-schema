@@ -13,15 +13,16 @@
   :depends-on ("cl-arrows"
                "dexador"
                "function-cache"
-               "jonathan"
+               "quri"
                "sanity-clause"
+               "st-json"
                "trivial-types")
   :homepage "https://fisxoj.github.io/json-schema/"
   :in-order-to ((test-op (test-op json-schema/test)))
   :long-description #.(uiop:read-file-string #P"README.rst"))
 
 
-(defsystem json-schema/test
+(defsystem json-schema/json-schema-test-suite
   :depends-on ("json-schema"
 	       "rove")
   :pathname "t"
@@ -32,3 +33,16 @@
   :perform (test-op (op c)
                     (declare (ignore op))
 		    (uiop:symbol-call :rove :run c)))
+
+(defsystem json-schema/unit-tests
+  :depends-on ("json-schema"
+	       "rove")
+  :pathname "t"
+  :components ((:file "reference"))
+  :perform (test-op (op c)
+                    (declare (ignore op))
+		    (uiop:symbol-call :rove :run c)))
+
+(defsystem json-schema/test
+  :in-order-to ((test-op (test-op json-schema/json-schema-test-suite)
+                         (test-op json-schema/unit-tests))))

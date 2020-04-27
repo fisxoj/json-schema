@@ -6,44 +6,58 @@
 
 
 (defun data-of (spec)
-  (gethash "data" spec))
+  (st-json:getjso "data" spec)
+  ;; (gethash "data" spec)
+  )
 
 
 (defun valid-p (spec)
-  (not (eq (gethash "valid" spec) :false)))
+  (eq (st-json:getjso "valid" spec) :true)
+  ;; (not (eq (gethash "valid" spec) :false))
+  )
 
 
 (defun description-of (spec)
-  (gethash "description" spec))
+  (st-json:getjso "description" spec)
+  ;; (gethash "description" spec)
+  )
 
 
 (defun schema-of (spec)
-  (gethash "schema" spec))
+  (st-json:getjso "schema" spec)
+  ;; (gethash "schema" spec)
+  )
 
 
 (defun test-cases-of (spec)
-  (gethash "tests" spec))
+  (st-json:getjso "tests" spec)
+  ;; (gethash "tests" spec)
+  )
 
 
 (defun unhash (data)
-  "Convert the json input of hashes/arrays into forms that are (lisp)readable for codegen."
-
   (typecase data
-    (hash-table
-     (let (alist)
-       (maphash (lambda (k v) (push `(cons ,k ,(unhash v)) alist)) data)
-       `(alexandria:alist-hash-table (list ,@alist) :test 'equal)))
+    (st-json:jso
+     `(st-json:read-json-from-string ,(st-json:write-json-to-string data)))
 
     (list
      `(list ,@(mapcar #'unhash data)))
 
     (t data)))
 
+;; (defun unhash (data)
+;;   "Convert the json input of hashes/arrays into forms that are (lisp)readable for codegen."
 
-(defun transform-spec-to-tests (spec-pathname)
-  (-> spec-pathname
-      read-file-into-string
-      json-schema.parse:parse))
+;;   (typecase data
+;;     (hash-table
+;;      (let (alist)
+;;        (maphash (lambda (k v) (push `(cons ,k ,(unhash v)) alist)) data)
+;;        `(alexandria:alist-hash-table (list ,@alist) :test 'equal)))
+
+;;     (list
+;;      `(list ,@(mapcar #'unhash data)))
+
+;;     (t data)))
 
 
 (defmacro test-cases-from-file (name)
@@ -60,7 +74,7 @@
 
     `(deftest ,(intern (format nil "TEST-~:@(~a~)" name) *package*)
        ,@(mapcar #'spec-to-deftest
-                 (transform-spec-to-tests test-spec-pathname)))))
+                 (json-schema.parse:parse test-spec-pathname)))))
 
 
 (defun test-case-to-assertion (spec schema-gensym)

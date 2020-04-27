@@ -14,11 +14,11 @@
 
 
 (defun boolean-p (value)
-  (member value '(:false t)))
+  (member value '(:false :true)))
 
 
 (defun object-p (value)
-  (hash-table-p value))
+  (typep value 'st-json:jso))
 
 
 (defun any-p (value)
@@ -29,11 +29,12 @@
 (defun array-p (value)
   "Arrays are valid, but not strings."
 
-  ;; Jonathan only decodes arrays into lists, so, we have to work with that...
-  (and (not (null value))
-       (or (arrayp value)
-           (proper-list-p value))
+  (and (proper-list-p value)
        (not (stringp value))))
+
+
+(defun null-p (value)
+  (eq value :null))
 
 
 (defmacro def-checker (name &rest types-plist)
@@ -49,7 +50,7 @@
   "boolean" boolean-p
   "integer" integerp
   "object" object-p
-  "null" null
+  "null" null-p
   "number" realp
   "string" stringp)
 
@@ -59,7 +60,7 @@
   "boolean" boolean-p
   "integer" integerp
   "object" object-p
-  "null" null
+  "null" null-p
   "number" realp
   "string" stringp)
 
@@ -69,7 +70,7 @@
   "boolean" boolean-p
   "integer" integerp
   "object" object-p
-  "null" null
+  "null" null-p
   "number" realp
   "string" stringp)
 
@@ -79,15 +80,16 @@
   "boolean" boolean-p
   "integer" integerp
   "object" object-p
-  "null" null
+  "null" null-p
   "number" realp
   "string" stringp)
+
 
 (def-checker draft2019-09
   "array" array-p
   "boolean" boolean-p
   "integer" integerp
   "object" object-p
-  "null" null
+  "null" null-p
   "number" realp
   "string" stringp)

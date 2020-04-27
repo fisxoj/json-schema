@@ -1,12 +1,16 @@
 (defpackage json-schema.reference
   (:use :cl :alexandria :cl-arrows)
+  (:local-nicknames (:json :st-json))
   (:export #:make-reference
            #:with-context
            #:push-context
            #:relative-reference-p
            #:escape
            #:unescape
-           #:with-pushed-context))
+           #:with-pushed-context
+           #:get-subspec-by-ref
+           #:ensure-resolved
+           #:resolve))
 
 (in-package :json-schema.reference)
 
@@ -37,8 +41,8 @@
 
 
 (defun default-id-fun (schema)
-  (if (not (null schema))
-      (gethash "$id" schema)
+  (if (not (eq :null schema))
+      (json:getjso "$id" schema)
       ""))
 
 
@@ -124,38 +128,64 @@
        (every #'= (relative-path-of reference1) (relative-path-of reference2))))
 
 
+(defun make-relative-path-list (relative-path-string)
+  (mapcar (lambda (element)
+            (cond
+              ((every (lambda (char) (member char '(#\1 #\2 #\3 #\4 #\5 #\6 #\7 #\8 #\9 #\0)
+                                             :test #'char=))
+                      element)
+               (parse-integer element))
+
+              (t
+               (funcall (compose #'quri:url-decode #'unescape) element))))
+          (subseq (str:split #\/ relative-path-string) 1)))
+
+
 (defun make-reference (reference-string)
   (let ((uri (quri:uri reference-string)))
     (make-instance 'reference
-                   :relative-path (mapcar (compose #'quri:url-decode #'unescape)
-                                          (str:split #\/ (quri:uri-fragment uri)))
+                   :relative-path (make-relative-path-list (quri:uri-fragment uri))
                    :uri (quri:render-uri (quri:copy-uri uri
                                                         :fragment nil
                                                         :query nil)))))
 
 
 (defun relative-reference-p (reference)
-  (and (null (quri:uri-scheme reference))
-       (null (quri:uri-host reference))
-       (null (quri:uri-path reference))))
+  (string= "" (uri-of reference)))
 
 
 (defun fetch-reference (uri)
   (-> uri
       (dex:get :read-timeout 10
-               :connect-timeout 10)
-      (jojo:parse :as :hash-table)))
+               :connect-timeout 10
+               :want-stream t)
+      json:read-json))
 
 
 (defun get-ref (spec)
-  (gethash "$ref" spec))
+  (json:getjso "$ref" spec))
 
 
 (defun ref-p (spec)
   "A spec is a reference if it has only one key which is ``$ref``."
 
-  (and (= 1 (hash-table-count spec))
-       (nth-value 1 (gethash "$ref" spec))))
+  (and (not (null spec))
+       (nth-value 1 (json:getjso "$ref" spec))))
+
+
+(defun get-subspec-by-ref (spec ref)
+  (let ((path-list (if (stringp ref)
+                       (make-relative-path-list ref)
+                       ref)))
+
+    (loop for component of-type (or integer string) in path-list
+
+          if (stringp component)
+            do (setf spec (json:getjso component spec))
+          else
+            do (setf spec (nth component spec))
+
+          finally (return spec))))
 
 
 (defun ensure-resolved (spec)
@@ -166,9 +196,19 @@
       (values spec nil)))
 
 
-(defun resolve (ref)
-  ;; (let ((reference (make-reference (get-ref ref))))
+(defun relative-to (reference)
+  (let ((current-context (first (context-current-uri *context*))))
+    (if (relative-reference-p reference)
+        current-context
+        (uri-of reference))))
 
-  ;;   (if (relative-reference-p reference)
-  ;;       ))
-  )
+
+(defun lookup (reference)
+  (when-let ((schema (gethash (relative-to reference) (context-references *context*))))
+
+    (get-subspec-by-ref schema (relative-path-of reference))))
+
+
+(defun resolve (ref)
+  (let ((reference (make-reference (get-ref ref))))
+    (lookup reference)))
