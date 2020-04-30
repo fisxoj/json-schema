@@ -9,6 +9,7 @@
   :components ((:file "parse")
                (:file "types")
                (:file "reference")
+               (:file "validators")
                (:file "json-schema"))
   :depends-on ("cl-arrows"
                "dexador"
@@ -38,7 +39,8 @@
   :depends-on ("json-schema"
 	       "rove")
   :pathname "t"
-  :components ((:file "reference"))
+  :components ((:file "reference")
+               (:file "validators"))
   :perform (test-op (op c)
                     (declare (ignore op))
 		    (uiop:symbol-call :rove :run c)))

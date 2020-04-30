@@ -75,10 +75,38 @@
               "can resolve a reference.")
 
           (ok (= resolved 4)
-              "can resolve a simple relative reference to the correct value."))))))
+              "can resolve a simple relative reference to the correct value.")))))
+
+  (testing "encoded ref names"
+    (let ((document (json:read-json-from-string "{\"$defs\": {
+                \"tilda~field\": {\"type\": \"integer\"},
+                \"slash/field\": {\"type\": \"integer\"},
+                \"percent%field\": {\"type\": \"integer\"}
+            },
+            \"properties\": {
+                \"tilda\": {\"$ref\": \"#/$defs/tilda~0field\"},
+                \"slash\": {\"$ref\": \"#/$defs/slash~1field\"},
+                \"percent\": {\"$ref\": \"#/$defs/percent%25field\"}}}")))
+      (put:with-context ()
+        (put:with-pushed-context (document)
+
+          (ok (string= (json:getjso "type"
+                                    (put:resolve (json:getjso* "properties.slash" document)))
+                       "integer")
+              "can fetch a ref with an encoded slash in it.")
+
+          (ok (string= (json:getjso "type"
+                                    (put:resolve (json:getjso* "properties.tilda" document)))
+                       "integer")
+              "can fetch a ref with an encoded tilda in it.")
+
+          (ok (string= (json:getjso "type"
+                                    (put:resolve (json:getjso* "properties.percent" document)))
+                       "integer")
+              "can fetch a ref with an encoded percent sign in it."))))))
 
 
-(deftest test-get-subspec-by-ref
+(deftest get-subspec-by-ref
   (testing "get-subspec-by-ref"
     (let ((document (json:read-json-from-string "{\"toplevel\":[1,2,3,4,5],\"another\":{\"something\": null,\"potato\":[{\"name\":\"yes\"},{\"name\":\"no\"}]}}")))
 
