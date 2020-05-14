@@ -38,7 +38,7 @@
 (defun unhash (data)
   (typecase data
     (st-json:jso
-     `(st-json:read-json-from-string ,(st-json:write-json-to-string data)))
+     `(json-schema.parse:parse ,(st-json:write-json-to-string data)))
 
     (list
      `(list ,@(mapcar #'unhash data)))
