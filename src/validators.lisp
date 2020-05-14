@@ -303,7 +303,7 @@
   (require-type "object")
 
   (let ((missing-keys (set-difference required-fields
-                                      (utils:alist-keys data)
+                                      (utils:object-keys data)
                                       :test #'string=)))
 
     (condition (null missing-keys)
