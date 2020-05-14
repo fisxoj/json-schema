@@ -43,6 +43,14 @@
                      (error 'validation-failed-error
                             :property-name ,,(string-downcase name)
                             :error-message (format nil ,error-string
+                                                   ,@format-args))))
+
+                (sub-errors (errors error-string &rest format-args)
+                  `(when ,errors
+                     (error 'validation-failed-error
+                            :sub-errors ,errors
+                            :property-name ,,(string-downcase name)
+                            :error-message (format nil ,error-string
                                                    ,@format-args)))))
 
        ,@body)))
@@ -149,7 +157,15 @@
                     additional-properties schema-properties)))
 
       (t
-       t))))
+       nil))))
+
+
+(defvfun all-of sub-schemas
+  (loop for sub-schema in sub-schemas
+        appending (validate sub-schema data) into errors
+        finally (sub-errors errors
+                   "~a didn't satisfy all schemas in ~{~a~^, ~}"
+                   data sub-schemas)))
 
 
 (defvfun const const
@@ -309,6 +325,7 @@
 
 (def-validator draft2019-09
   "additionalProperties" additional-properties
+  "allOf" all-of
   "const" const
   "contains" contains
   "exclusiveMaximum" exclusive-maximum
