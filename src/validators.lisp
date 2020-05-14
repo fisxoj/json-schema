@@ -97,6 +97,9 @@
        results))))
 
 
+;;; Validation functions for individaul properties
+
+
 (defvfun additional-properties value
   (require-type "object")
 
@@ -266,6 +269,14 @@
              data maximum))
 
 
+(defvfun max-length length
+  (require-type "string")
+
+  (condition (>= length (length data))
+             "String ~S must be at most ~d characters long."
+             data length))
+
+
 (defvfun minimum minimum
   (require-type "number")
 
@@ -274,7 +285,49 @@
              data minimum))
 
 
-(defvfun properties (schema properties data)
+(defvfun min-length length
+  (require-type "string")
+
+  (condition (<= length (length data))
+             "String ~S must be at least ~d characters long."
+             data length))
+
+
+(defvfun min-properties count
+  (require-type "object")
+
+  (condition (>= (length (utils:object-keys data)) count)
+             "~a must have at least ~d properties."
+             data count))
+
+
+(defvfun max-properties count
+  (require-type "object")
+
+  (condition (<= (length (utils:object-keys data)) count)
+             "~a must have at most ~d properties."
+             data count))
+
+
+(defvfun multiple-of divisor
+  (require-type "number")
+
+  (when (zerop divisor)
+    (return-from multiple-of))
+
+  (etypecase divisor
+    (integer
+     (condition (zerop (mod (the number data) divisor))
+                "~d is not a multiple of ~d."
+                data divisor))
+
+    (real
+     (condition (= (truncate data divisor) (/ data divisor))
+                "~d is not a multiple of ~d."
+                data divisor))))
+
+
+(defvfun properties properties
   (require-type "object")
 
   (loop for (property . property-schema) in (json::jso-alist properties)
@@ -311,6 +364,17 @@
                required-fields)))
 
 
+(defvfun unique-items unique
+  ;; FIXME: need a good way of checking for equality between arbitrary things here
+  (when unique
+    (condition (= (length data) (length (remove-duplicates data :test 'equal)))
+               "Not all items in ~{~a~^, ~} are unique."
+               data)))
+
+
+;;; Validators for properties in different drafts of jsonschema
+
+
 (defmacro def-validator (name &rest keys-plist)
   `(defun ,name (schema field value data)
      (alexandria:switch (field :test #'string-equal)
@@ -331,8 +395,15 @@
   "exclusiveMaximum" exclusive-maximum
   "exclusiveMinimum" exclusive-minimum
   "maximum" maximum
+  "maxLength" max-length
+  "maxProperties" max-properties
   "minimum" minimum
+  "minLength" min-length
+  "minProperties" min-properties
+  "multipleOf" multiple-of
   "properties" properties
   "pattern" pattern
   "required" required
-  "type" type-validator)
+  "type" type-validator
+  ;; "uniqueItems" unique-items
+  )
