@@ -4,15 +4,56 @@
                     (:json :st-json))
   (:use :cl :alexandria)
   (:export #:draft2019-09
-           #:validate))
+           #:validate
+           #:validation-failed-error))
 
 (in-package :json-schema.validators)
 
 (deftype schema-version ()
-  '(member :draft2019-09 :draft7 :draft6 :draft4 :draft3))
+  '(member :draft2019-09
+           :draft7
+           :draft6
+           :draft4
+           :draft3))
 
 
 (defparameter *schema-version* :draft2019-09)
+
+
+(define-condition validation-failed-error (error)
+  ((property-name :initarg :property-name)
+   (error-message :initarg :error-message)
+   (sub-errors :initarg :sub-errors :initform nil))
+  (:report (lambda (c stream)
+             (format stream "Validation of property ~S failed with error:~2%~a~@[~2%Additionally:~%~{- ~a~%~}~]"
+                     (slot-value c 'property-name)
+                     (slot-value c 'error-message)
+                     (slot-value c 'sub-errors)))))
+
+
+(defmacro defvfun (name validation-field &body body)
+  `(defun ,name (schema ,validation-field data)
+     (macrolet ((require-type (type)
+                  `(unless (validate-type nil ,type data)
+                     (return-from ,',name t)))
+
+                (condition (form error-string &rest format-args)
+                  `(unless ,form
+                     (error 'validation-failed-error
+                            :property-name ,,(string-downcase name)
+                            :error-message (format nil ,error-string
+                                                   ,@format-args)))))
+
+       ,@body)))
+
+
+(defun validate-type (schema type data)
+  "This is a tool for checking type validation, but isn't a validator itself.  It's used by many of the validator functions to decide wether they can have an opinion on the data being validated, but is also used by :function:`type-validator`."
+  (declare (ignore schema))
+
+  (if (listp type)
+      (some (lambda (type) (types:draft2019-09 data type)) type)
+      (types:draft2019-09 data type)))
 
 
 (define-condition no-validator-condition ()
@@ -36,25 +77,19 @@
                                       (no-validator-condition (c)
                                         (warn "No validator for field ~a - skipping."
                                               (slot-value c 'field-name))
-                                        c))))
+                                        nil)
 
-                        ;; (format t "~& validate property ~S => ~A~%" property result)
+                                      (validation-failed-error (error)
+                                        error))))
 
-                        (unless (typep result 'condition)
+                        (when (typep result 'condition)
                           (push result results))))
                     resolved-schema)
-
-       ;; (format t "~& validating data ~a against ~a => ~a~%"
-       ;;         data
-       ;;         resolved-schema
-       ;;         (notany #'null results))
-
-       (notany #'null results)))))
+       results))))
 
 
-(defun additional-properties (schema value data)
-  (unless (typep data 'st-json:jso)
-    (return-from additional-properties t))
+(defvfun additional-properties value
+  (require-type "object")
 
   (labels ((alist-keys (alist)
              (mapcar #'car (st-json::jso-alist alist)))
@@ -90,10 +125,12 @@
          ;;         combined-schema-properties
          ;;         (set-difference combined-schema-properties data-properties :test #'string=))
 
-         (null
-          (set-difference data-properties
-                          combined-schema-properties
-                          :test #'string=))))
+         (condition (null
+                     (set-difference data-properties
+                                     combined-schema-properties
+                                     :test #'string=))
+                    "~a contains more properties than specified in the schema ~a"
+                    data-properties combined-schema-properties)))
 
       ((typep value 'json:jso)
        (let* ((schema-properties (when-let ((properties (json:getjso "properties" schema)))
@@ -106,41 +143,74 @@
                                       (set-difference data-properties
                                                       schema-properties
                                                       :test #'string=))))
-         (notany #'null
-                 (loop for additional-property in additional-properties
-                       collect (validate value (json:getjso additional-property data))))))
+         (condition (null additional-properties)
+                    "The properties ~{~S~^, ~} aren't in the schema ~{~S~^, ~} schema-properties."
+                    additional-properties schema-properties)))
 
       (t
        t))))
 
 
-(defun validate-type (schema type data)
-  (declare (ignore schema))
+(defvfun contains contains
+  (require-type "array")
 
-  ;; (format t "~& validating-type ~a against ~A~%" data type)
-
-  (if (listp type)
-      (some (lambda (type) (types:draft2019-09 data type)) type)
-      (types:draft2019-09 data type)))
+  (condition (find contains data :test 'equal)
+             "~a does not contain ~a" data contains))
 
 
-(defun properties (schema properties data)
-  (unless (typep data 'st-json:jso)
-    (return-from properties t))
+(defvfun exclusive-maximum maximum
+  (require-type "number")
 
-  (notany #'null
-          (loop for (property . property-schema) in (json::jso-alist properties)
-                ;; FIXME: use more generic getters here
-                collecting (multiple-value-bind (property-data found-p) (json:getjso property data)
+  (condition (not (>= data maximum))
+             "~d must be strictly less than ~a"
+             data maximum))
 
-                             (let ((result (if found-p
-                                               (validate property-schema property-data)
-                                               t)))
-                               ;; (format t "~&====~%property ~S ~a => ~a~%===~%"
-                               ;;       property
-                               ;;       property-data
-                               ;;       result)
-                               result)))))
+
+(defvfun exclusive-minimum minimum
+  (require-type "number")
+
+  (condition (not (<= data minimum))
+             "~d must be strictly more than ~a"
+             data minimum))
+
+
+(defvfun type-validator type
+  (condition (validate-type nil type data)
+             "Value ~a is not of type ~S."
+             data type))
+
+
+(defvfun maximum maximum
+  (require-type "number")
+
+  (condition (<= data maximum)
+             "~d must be less than or equal to ~d"
+             data maximum))
+
+
+(defvfun minimum minimum
+  (require-type "number")
+
+  (condition (>= data minimum)
+             "~d must be greater than or equal to ~d"
+             data minimum))
+
+
+(defvfun properties (schema properties data)
+  (require-type "object")
+
+  (loop for (property . property-schema) in (json::jso-alist properties)
+        ;; FIXME: use more generic getters here
+        collecting (multiple-value-bind (property-data found-p) (json:getjso property data)
+
+                     (let ((result (if found-p
+                                       (validate property-schema property-data)
+                                       t)))
+                       ;; (format t "~&====~%property ~S ~a => ~a~%===~%"
+                       ;;       property
+                       ;;       property-data
+                       ;;       result)
+                       result))))
 
 
 (defun pattern (schema pattern data)
@@ -156,12 +226,21 @@
   `(defun ,name (schema field value data)
      (alexandria:switch (field :test #'string-equal)
        ,@(loop for (field function) on keys-plist by #'cddr
-               collecting `(,field (,function schema value data)))
+               for error = (handler-case `(,field (,function schema value data))
+                             (validation-failed-error (error)
+                               error))
+               when error
+               collecting error)
        (otherwise (signal 'no-validator-condition :field-name field)))))
 
 
 (def-validator draft2019-09
   "additionalProperties" additional-properties
-  "type" validate-type
+  "contains" contains
+  "exclusiveMaximum" exclusive-maximum
+  "exclusiveMinimum" exclusive-minimum
+  "maximum" maximum
+  "minimum" minimum
   "properties" properties
-  "pattern" pattern)
+  "pattern" pattern
+  "type" type-validator)

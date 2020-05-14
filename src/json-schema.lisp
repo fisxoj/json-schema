@@ -1,5 +1,5 @@
 (defpackage json-schema
-  (:use :cl)
+  (:use :cl :alexandria)
   (:local-nicknames (:reference :json-schema.reference)
                     (:validators :json-schema.validators))
   (:export #:validate))
@@ -12,4 +12,6 @@
 (defun validate (schema data)
   (reference:with-context ()
     (reference:with-pushed-context (schema)
-      (validators:validate schema data))))
+      (if-let ((errors (validators:validate schema data)))
+        (values nil errors)
+        (values t nil)))))
