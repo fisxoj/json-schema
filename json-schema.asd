@@ -6,7 +6,8 @@
   :license "LGPL"
   :version "0.0.1"
   :pathname "src"
-  :components ((:file "parse")
+  :components ((:file "utils")
+               (:file "parse")
                (:file "types")
                (:file "reference")
                (:file "validators")
@@ -41,7 +42,8 @@
   :depends-on ("json-schema"
 	       "rove")
   :pathname "t"
-  :components ((:file "reference")
+  :components ((:file "utils")
+               (:file "reference")
                (:file "validators"))
   :perform (test-op (op c)
                     (declare (ignore op))
