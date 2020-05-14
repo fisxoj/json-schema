@@ -1,5 +1,6 @@
 (defpackage :json-schema.validators
   (:local-nicknames (:types :json-schema.types)
+                    (:utils :json-schema.utils)
                     (:reference :json-schema.reference)
                     (:json :st-json))
   (:use :cl :alexandria)
@@ -151,10 +152,71 @@
        t))))
 
 
+(defvfun const const
+  (typecase const
+    (json:json-null
+     (condition (validate-type nil "null" data)
+                "~a isn't null like the constant."
+                data))
+
+    (number
+     (condition (validate-type nil "number" data)
+                "~a isn't a number like constant ~d."
+                data const)
+     (condition (= const data)
+                "~d doesn't equal constant ~d."
+                data const))
+
+    (string
+     (condition (validate-type nil "string" data)
+                "~a isn't a string like constant ~S."
+                data const)
+     (condition (string= const data)
+                "~S dosen't equal constant ~S."
+                data const))
+
+    (proper-list
+     (condition (validate-type nil "array" data)
+                "~a isn't an array like constant ~a."
+                data const)
+     (condition (handler-case (progn
+                                (map nil
+                                     (lambda (const-el data-el)
+                                       (const schema const-el data-el))
+                                     const
+                                     data)
+                                ;; return t when every field can be checked without producing errors
+                                t)
+                  (validation-failed-error (error)
+                    (declare (ignore error))
+                    ;; Fail validation if an element isn't equal
+                    nil))
+                "~a doesn't equal constant ~a."
+                data const))
+
+    (json:jso
+     (condition (validate-type nil "object" data)
+                "~a isn't an object like constant ~a."
+                data const)
+     (condition (utils:object-equal-p const data)
+                "~a isn't the same object as constant ~a."
+                data const))
+
+    (json:json-bool
+     (condition (validate-type nil "boolean" data)
+                "~a isn't a boolean like ~a."
+                data const)
+     (condition (eq data const)
+                "~a doesn't equal constant ~a."
+                data const))
+
+    (t (error "No validator for const type ~a" (type-of const)))))
+
+
 (defvfun contains contains
   (require-type "array")
 
-  (condition (find contains data :test 'equal)
+  (condition (some (lambda (data) (not (validate contains data))) data)
              "~a does not contain ~a" data contains))
 
 
@@ -213,13 +275,24 @@
                        result))))
 
 
-(defun pattern (schema pattern data)
-  (declare (ignore schema))
+(defvfun pattern pattern
+  (require-type "string")
 
-  (unless (typep data 'string)
-    (return-from pattern t))
+  (condition (ppcre:scan pattern data)
+             "~S didn't match pattern ~S"
+             data pattern))
 
-  (ppcre:scan pattern data))
+
+(defvfun required required-fields
+  (require-type "object")
+
+  (let ((missing-keys (set-difference required-fields
+                                      (utils:alist-keys data)
+                                      :test #'string=)))
+
+    (condition (null missing-keys)
+               "Object is missing the required keys: ~{~a~^, ~}"
+               required-fields)))
 
 
 (defmacro def-validator (name &rest keys-plist)
@@ -230,12 +303,13 @@
                              (validation-failed-error (error)
                                error))
                when error
-               collecting error)
+                 collecting error)
        (otherwise (signal 'no-validator-condition :field-name field)))))
 
 
 (def-validator draft2019-09
   "additionalProperties" additional-properties
+  "const" const
   "contains" contains
   "exclusiveMaximum" exclusive-maximum
   "exclusiveMinimum" exclusive-minimum
@@ -243,4 +317,5 @@
   "minimum" minimum
   "properties" properties
   "pattern" pattern
+  "required" required
   "type" type-validator)
