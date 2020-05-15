@@ -45,12 +45,13 @@
                                                    ,@format-args))))
 
                 (sub-errors (errors error-string &rest format-args)
-                  `(when ,errors
-                     (error 'validation-failed-error
-                            :sub-errors ,errors
-                            :property-name ,,(string-downcase name)
-                            :error-message (format nil ,error-string
-                                                   ,@format-args)))))
+                  (once-only (errors)
+                    `(when ,errors
+                       (error 'validation-failed-error
+                              :sub-errors ,errors
+                              :property-name ,,(string-downcase name)
+                              :error-message (format nil ,error-string
+                                                     ,@format-args))))))
 
        ,@body)))
 
