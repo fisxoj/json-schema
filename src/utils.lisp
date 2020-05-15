@@ -9,7 +9,9 @@
 
            #:object
            #:json-boolean
-           #:json-null))
+           #:json-null
+           #:json-array
+           #:make-empty-object))
 
 (in-package :json-schema.utils)
 
@@ -24,6 +26,14 @@
 
 (deftype json-null ()
   'st-json:json-null)
+
+
+(deftype json-array ()
+  'proper-list)
+
+
+(defun make-empty-object ()
+  (make-instance 'st-json:jso))
 
 
 (defun object-keys (alist)
