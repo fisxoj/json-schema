@@ -203,64 +203,9 @@
 
 
 (defvfun const const
-  (typecase const
-    (utils:json-null
-     (condition (validate-type nil "null" data)
-                "~a isn't null like the constant."
-                data))
-
-    (number
-     (condition (validate-type nil "number" data)
-                "~a isn't a number like constant ~d."
-                data const)
-     (condition (= const data)
-                "~d doesn't equal constant ~d."
-                data const))
-
-    (string
-     (condition (validate-type nil "string" data)
-                "~a isn't a string like constant ~S."
-                data const)
-     (condition (string= const data)
-                "~S dosen't equal constant ~S."
-                data const))
-
-    (proper-list
-     (condition (validate-type nil "array" data)
-                "~a isn't an array like constant ~a."
-                data const)
-     (condition (handler-case (progn
-                                (map nil
-                                     (lambda (const-el data-el)
-                                       (const schema const-el data-el))
-                                     const
-                                     data)
-                                ;; return t when every field can be checked without producing errors
-                                t)
-                  (validation-failed-error (error)
-                    (declare (ignore error))
-                    ;; Fail validation if an element isn't equal
-                    nil))
-                "~a doesn't equal constant ~a."
-                data const))
-
-    (utils:object
-     (condition (validate-type nil "object" data)
-                "~a isn't an object like constant ~a."
-                data const)
-     (condition (utils:object-equal-p const data)
-                "~a isn't the same object as constant ~a."
-                data const))
-
-    (utils:json-boolean
-     (condition (validate-type nil "boolean" data)
-                "~a isn't a boolean like ~a."
-                data const)
-     (condition (eq data const)
-                "~a doesn't equal constant ~a."
-                data const))
-
-    (t (error "No validator for const type ~a" (type-of const)))))
+  (condition (utils:json-equal-p data const)
+             "~a is not equal to constant ~a."
+             data const))
 
 
 (defvfun contains contains
