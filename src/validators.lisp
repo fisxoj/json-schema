@@ -458,6 +458,14 @@
                 "got errors validating properties")))
 
 
+(defvfun property-names names-schema
+  (require-type "object")
+
+  (sub-errors (loop for property in (utils:object-keys data)
+                    appending (validate names-schema property))
+              "Errors validating propertyNames."))
+
+
 (defvfun pattern pattern
   (require-type "string")
 
@@ -528,6 +536,7 @@
   "oneOf" one-of
   "patternProperties" pattern-properties
   "properties" properties
+  "propertyNames" property-names
   "pattern" pattern
   "required" required
   "then" noop
