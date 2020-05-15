@@ -110,6 +110,27 @@
 ;;; Validation functions for individaul properties
 
 
+(defun noop (schema property data)
+  "This exists to say we have taken care of a property, but we should do nothing with it.  Likely because this property is actually handled by other things.  ``$ref`` is handled by :function:`validate`, ``else`` and ``then`` are handled by :function:`if-validator`, &c."
+  (declare (ignore schema property data)))
+
+
+(defvfun additional-items additional-items
+  (require-type "array")
+
+  (when (validate-type nil "object" (utils:object-get "items" schema (utils:make-empty-object)))
+    (return-from additional-items))
+
+  (let ((items-length (length (utils:object-get "items" schema))))
+    ;; There are only additional items if there are more than the items schema
+    ;; mentions
+    (when (> (length data) items-length)
+      (sub-errors (loop for item in (subseq data items-length)
+                        appending (validate additional-items item))
+                  "Errors validating additional items against ~a."
+                  additional-items))))
+
+
 (defvfun additional-properties value
   (require-type "object")
 
@@ -119,7 +140,7 @@
                (remove-if (lambda (key)
                             (some (lambda (pattern) (ppcre:scan pattern key))
                                   (utils:object-keys pattern-properties)))
-                              list)
+                          list)
                list)))
 
     (cond
@@ -153,7 +174,7 @@
               (errors (loop for property in additional-properties
                             appending (validate value (utils:object-get property data)))))
          (sub-errors errors
-                    "There were errors validating additional properties."))))))
+                     "There were errors validating additional properties."))))))
 
 
 (defvfun all-of sub-schemas
@@ -162,6 +183,23 @@
         finally (sub-errors errors
                    "~a didn't satisfy all schemas in ~{~a~^, ~}"
                    data sub-schemas)))
+
+
+(defvfun any-of sub-schemas
+
+  (let ((errors (loop for sub-schema in sub-schemas
+                      for errors = (validate sub-schema data)
+
+                      when (null errors)
+                        return nil
+
+                      collect errors into all-errors
+
+                      finally (return all-errors))))
+
+    (sub-errors errors
+                "~a isn't valid for any of the given schemas."
+                data)))
 
 
 (defvfun const const
@@ -254,6 +292,32 @@
              data minimum))
 
 
+(defvfun if-validator condition-schema
+  (if (null (validate condition-schema data))
+      (when-let ((then-schema (utils:object-get "then" schema)))
+        (sub-errors (validate then-schema data)
+                    "Errors occurred validating then clause."))
+      (when-let ((else-schema (utils:object-get "else" schema)))
+        (sub-errors (validate else-schema data)
+                    "Errors occurred validating else clause."))))
+
+
+(defvfun items items
+  (require-type "array")
+
+  (if (typep items 'utils:json-array)
+      ;; There are schemas in the items property
+      (sub-errors (loop for sub-schema in items
+                        for item in data
+                        appending (validate sub-schema item))
+                  "Errors occurred validating items of an array.")
+      ;; There is one schema for every item in the array
+      (sub-errors (loop for item in data
+                        appending (validate items item))
+                  "Errors occurred validating items against ~a."
+                  items)))
+
+
 (defvfun type-validator type
   (condition (validate-type nil type data)
              "Value ~a is not of type ~S."
@@ -341,6 +405,25 @@
                 data divisor))))
 
 
+(defvfun not-validator sub-schema
+  (condition (not (null (validate sub-schema data)))
+             "~a should not be valid under ~a."
+             data sub-schema))
+
+
+(defvfun one-of sub-schemas
+  (let ((errors-for-schema (loop for sub-schema in sub-schemas
+                                 collecting (validate sub-schema data))))
+
+    (condition (some #'null errors-for-schema)
+               "~a was not valid under any given schema."
+               data)
+
+    (condition (= 1 (length (remove-if-not #'null errors-for-schema)))
+               "~a was valid for more than one given schema."
+               data)))
+
+
 (defvfun pattern-properties patterns
   (require-type "object")
 
@@ -351,8 +434,8 @@
 
                  when (ppcre:scan pattern-property key)
                    appending (handler-case (validate property-schema property-data)
-                                     (validation-failed-error (error)
-                                       error)))))
+                               (validation-failed-error (error)
+                                 error)))))
 
     (let* ((errors (loop for data-property in (utils:object-keys data)
                          appending (test-key data-property))))
@@ -396,9 +479,9 @@
 
 
 (defvfun unique-items unique
-  ;; FIXME: need a good way of checking for equality between arbitrary things here
   (when unique
-    (condition (= (length data) (length (remove-duplicates data :test 'equal)))
+    (condition (= (length data)
+                  (length (remove-duplicates data :test 'utils:json-equal-p)))
                "Not all items in ~{~a~^, ~} are unique."
                data)))
 
@@ -419,13 +502,19 @@
 
 
 (def-validator draft2019-09
+  "$ref" noop
+  "additionalItems" additional-items
   "additionalProperties" additional-properties
   "allOf" all-of
+  "anyOf" any-of
   "const" const
   "contains" contains
+  "else" noop
   "enum" enum
   "exclusiveMaximum" exclusive-maximum
   "exclusiveMinimum" exclusive-minimum
+  "if" if-validator
+  "items" items
   "maximum" maximum
   "maxItems" max-items
   "maxLength" max-length
@@ -435,10 +524,12 @@
   "minLength" min-length
   "minProperties" min-properties
   "multipleOf" multiple-of
+  "not" not-validator
+  "oneOf" one-of
   "patternProperties" pattern-properties
   "properties" properties
   "pattern" pattern
   "required" required
+  "then" noop
   "type" type-validator
-  ;; "uniqueItems" unique-items
-  )
+  "uniqueItems" unique-items)
