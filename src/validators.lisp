@@ -21,11 +21,11 @@
 
 
 (define-condition validation-failed-error (error)
-  ((property-name :initarg :property-name)
-   (error-message :initarg :error-message)
+  ((error-message :initarg :error-message)
+   (property-name :initarg :property-name :initform nil)
    (sub-errors :initarg :sub-errors :initform nil))
   (:report (lambda (c stream)
-             (format stream "Validation of property ~S failed with error:~2%~a~@[~2%Additionally:~%~{- ~a~%~}~]"
+             (format stream "Validation~@[ of property ~S~] failed with error:~2%~a~@[~2%Additionally:~%~{- ~a~%~}~]"
                      (slot-value c 'property-name)
                      (slot-value c 'error-message)
                      (slot-value c 'sub-errors)))))
@@ -231,6 +231,12 @@
              "~a does not contain ~a" data contains))
 
 
+(defvfun enum members
+  (condition (member data members :test #'utils:json-equal-p)
+             "~a isn't one of ~{~a~^, ~}."
+             data members))
+
+
 (defvfun exclusive-maximum maximum
   (require-type "number")
 
@@ -269,6 +275,14 @@
              data length))
 
 
+(defvfun max-items length
+  (require-type "array")
+
+  (condition (>= length (length data))
+             "Array ~a must be at most ~d items long."
+             data length))
+
+
 (defvfun minimum minimum
   (require-type "number")
 
@@ -276,6 +290,13 @@
              "~d must be greater than or equal to ~d"
              data minimum))
 
+
+(defvfun min-items length
+  (require-type "array")
+
+  (condition (<= length (length data))
+             "Array ~a must be at least ~d items long."
+             data length))
 
 (defvfun min-length length
   (require-type "string")
@@ -319,21 +340,38 @@
                 data divisor))))
 
 
+(defvfun pattern-properties patterns
+  (require-type "object")
+
+  (flet ((test-key (key)
+           (loop for pattern-property in (utils:object-keys patterns)
+                 for property-schema = (utils:object-get pattern-property patterns)
+                 for property-data = (utils:object-get key data)
+
+                 when (ppcre:scan pattern-property key)
+                   appending (handler-case (validate property-schema property-data)
+                                     (validation-failed-error (error)
+                                       error)))))
+
+    (let* ((errors (loop for data-property in (utils:object-keys data)
+                         appending (test-key data-property))))
+
+      (sub-errors errors
+                  "got errors validating properties"))))
+
+
 (defvfun properties properties
   (require-type "object")
 
-  (loop for (property . property-schema) in (json::jso-alist properties)
-        ;; FIXME: use more generic getters here
-        collecting (multiple-value-bind (property-data found-p) (json:getjso property data)
+  (let ((errors (loop for property in (utils:object-keys properties)
+                      for property-schema = (utils:object-get property properties)
+                      for (property-data found-p) = (multiple-value-list (utils:object-get property data))
 
-                     (let ((result (if found-p
-                                       (validate property-schema property-data)
-                                       t)))
-                       ;; (format t "~&====~%property ~S ~a => ~a~%===~%"
-                       ;;       property
-                       ;;       property-data
-                       ;;       result)
-                       result))))
+                      when found-p
+                        appending (validate property-schema property-data))))
+
+    (sub-errors errors
+                "got errors validating properties")))
 
 
 (defvfun pattern pattern
@@ -384,15 +422,19 @@
   "allOf" all-of
   "const" const
   "contains" contains
+  "enum" enum
   "exclusiveMaximum" exclusive-maximum
   "exclusiveMinimum" exclusive-minimum
   "maximum" maximum
+  "maxItems" max-items
   "maxLength" max-length
   "maxProperties" max-properties
   "minimum" minimum
+  "minItems" min-items
   "minLength" min-length
   "minProperties" min-properties
   "multipleOf" multiple-of
+  "patternProperties" pattern-properties
   "properties" properties
   "pattern" pattern
   "required" required
