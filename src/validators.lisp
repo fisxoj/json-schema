@@ -1,8 +1,7 @@
 (defpackage :json-schema.validators
   (:local-nicknames (:types :json-schema.types)
                     (:utils :json-schema.utils)
-                    (:reference :json-schema.reference)
-                    (:json :st-json))
+                    (:reference :json-schema.reference))
   (:use :cl :alexandria)
   (:export #:draft2019-09
            #:validate
@@ -74,27 +73,37 @@
 
   (ecase schema-version
     (:draft2019-09
-     (let* ((resolved-schema (reference:ensure-resolved schema))
-            (results nil))
+     (cond
+       ((typep schema 'utils:json-boolean)
+        (if (eq schema :true)
+            nil
+            (list
+             (make-instance 'validation-failed-error
+                            :property-name ""
+                            :error-message "Schema :false is always false."))))
 
-       (json:mapjso (lambda (property value)
-                      (let ((result (handler-case (draft2019-09 resolved-schema
-                                                                property
-                                                                value
-                                                                data)
+       ((utils:empty-object-p schema)
+        nil)
 
-                                      (no-validator-condition (c)
-                                        (warn "No validator for field ~a - skipping."
-                                              (slot-value c 'field-name))
-                                        nil)
+       ((typep schema 'json-schema.utils:object)
+        (let* ((resolved-schema (reference:ensure-resolved schema)))
 
-                                      (validation-failed-error (error)
-                                        error))))
+          (loop for property in (utils:object-keys resolved-schema)
+                for value = (utils:object-get property resolved-schema)
+                appending (handler-case (progn
+                                          (draft2019-09 resolved-schema
+                                                        property
+                                                        value
+                                                        data)
+                                          nil)
 
-                        (when (typep result 'condition)
-                          (push result results))))
-                    resolved-schema)
-       results))))
+                            (no-validator-condition (c)
+                              (warn "No validator for field ~a - skipping."
+                                    (slot-value c 'field-name))
+                              nil)
+
+                            (validation-failed-error (error)
+                              (list error))))))))))
 
 
 ;;; Validation functions for individaul properties
@@ -103,64 +112,47 @@
 (defvfun additional-properties value
   (require-type "object")
 
-  (labels ((alist-keys (alist)
-             (mapcar #'car (st-json::jso-alist alist)))
+  (labels ((remove-pattern-property-keys (list)
+             (if-let ((pattern-properties (utils:object-get "patternProperties" schema)))
 
-           (remove-pattern-property-keys (list)
-             (if-let ((pattern-properties (json:getjso "patternProperties" schema)))
-
-               (remove-if-not (lambda (key)
-                                (some (lambda (pattern) (pattern schema pattern key))
-                                      (alist-keys pattern-properties)))
+               (remove-if (lambda (key)
+                            (some (lambda (pattern) (ppcre:scan pattern key))
+                                  (utils:object-keys pattern-properties)))
                               list)
                list)))
 
     (cond
       ((eq value :false)
-       (let* ((schema-properties (when-let ((properties (json:getjso "properties" schema)))
-                                   (alist-keys properties)))
+       (let* ((schema-properties (when-let ((properties (utils:object-get "properties" schema)))
+                                   (utils:object-keys properties)))
 
-              (data-properties (alist-keys data))
-
-              ;; pattern properties don't count as additional
-              (additional-properties (remove-pattern-property-keys
-                                      (set-difference data-properties
-                                                      schema-properties
-                                                      :test #'string=)))
-
-              (combined-schema-properties (union schema-properties
-                                                 additional-properties
-                                                 :test #'string=)))
-
-         ;; (format t "~& data-properties: ~a~% schema-properties: ~a~%different-properties: ~a~%"
-         ;;         data-properties
-         ;;         combined-schema-properties
-         ;;         (set-difference combined-schema-properties data-properties :test #'string=))
-
-         (condition (null
-                     (set-difference data-properties
-                                     combined-schema-properties
-                                     :test #'string=))
-                    "~a contains more properties than specified in the schema ~a"
-                    data-properties combined-schema-properties)))
-
-      ((typep value 'json:jso)
-       (let* ((schema-properties (when-let ((properties (json:getjso "properties" schema)))
-                                   (alist-keys properties)))
-
-              (data-properties (alist-keys data))
+              (data-properties (utils:object-keys data))
 
               ;; pattern properties don't count as additional
               (additional-properties (remove-pattern-property-keys
                                       (set-difference data-properties
                                                       schema-properties
                                                       :test #'string=))))
-         (condition (null additional-properties)
-                    "The properties ~{~S~^, ~} aren't in the schema ~{~S~^, ~} schema-properties."
-                    additional-properties schema-properties)))
 
-      (t
-       nil))))
+         (condition (null additional-properties)
+                    "~a contains more properties (~a) than specified in the schema ~a"
+                    data-properties additional-properties schema-properties)))
+
+      ((typep value 'utils:object)
+       (let* ((schema-properties (when-let ((properties (utils:object-get "properties" schema)))
+                                   (utils:object-keys properties)))
+
+              (data-properties (utils:object-keys data))
+
+              ;; pattern properties don't count as additional
+              (additional-properties (remove-pattern-property-keys
+                                      (set-difference data-properties
+                                                      schema-properties
+                                                      :test #'string=)))
+              (errors (loop for property in additional-properties
+                            appending (validate value (utils:object-get property data)))))
+         (sub-errors errors
+                    "There were errors validating additional properties."))))))
 
 
 (defvfun all-of sub-schemas
@@ -173,7 +165,7 @@
 
 (defvfun const const
   (typecase const
-    (json:json-null
+    (utils:json-null
      (condition (validate-type nil "null" data)
                 "~a isn't null like the constant."
                 data))
@@ -213,7 +205,7 @@
                 "~a doesn't equal constant ~a."
                 data const))
 
-    (json:jso
+    (utils:object
      (condition (validate-type nil "object" data)
                 "~a isn't an object like constant ~a."
                 data const)
@@ -221,7 +213,7 @@
                 "~a isn't the same object as constant ~a."
                 data const))
 
-    (json:json-bool
+    (utils:json-boolean
      (condition (validate-type nil "boolean" data)
                 "~a isn't a boolean like ~a."
                 data const)
