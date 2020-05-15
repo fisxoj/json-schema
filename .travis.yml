@@ -38,7 +38,7 @@ test-job: &test
     - rove json-schema.asd
 
 jobs:
-  finish_fast: true
+  fast_finish: true
   allow_failures:
     - env: LISP=clisp
     - env: LISP=abcl

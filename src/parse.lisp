@@ -24,7 +24,8 @@
 
 (defun parse (input)
   (flet ((parse (input)
-           (st-json:read-json input)))
+           (let ((*read-default-float-format* 'double-float))
+             (st-json:read-json input))))
     (etypecase input
       (string
        (parse input))
