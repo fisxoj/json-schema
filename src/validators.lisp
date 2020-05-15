@@ -510,6 +510,7 @@
 
 
 (def-validator draft2019-09
+  "$defs" noop
   "$ref" noop
   "additionalItems" additional-items
   "additionalProperties" additional-properties
