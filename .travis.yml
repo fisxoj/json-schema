@@ -4,62 +4,68 @@ os: linux
 notifications:
   email: false
 
-addons:
-  apt:
-    packages:
-      - libc6-i386
-      - openjdk-8-jre
+# addons:
+#   apt:
+#     packages:
+#       - libc6-i386
+#       - openjdk-8-jre
 
 services:
   - docker
 
-env:
-  global:
-    - PATH=$HOME/.roswell/bin:$PATH
-    - ROSWELL_INSTALL_DIR=$HOME/.roswell
-    - COVERAGE_EXCLUDE=t
+# env:
+#   global:
+#     - PATH=$HOME/.roswell/bin:$PATH
+#     - ROSWELL_INSTALL_DIR=$HOME/.roswell
+#     - COVERAGE_EXCLUDE=t
 
-cache:
-  directories:
-    - $HOME/.roswell
-    - $HOME/.config/common-lisp
+# cache:
+#   directories:
+#     - $HOME/.roswell
+#     - $HOME/.config/common-lisp
 
 # This gets the environment overridden to set the lisp implementation to test
-test-job: &test
-  stage: test
-  install:
-    # Install Roswell
-    - curl -L https://raw.githubusercontent.com/snmsts/roswell/release/scripts/install-for-ci.sh | sh
-    - ros install fukamachi/rove
-  before_script:
-    - ros --version
-    - ros config
-  script:
-    - ros -s json-schema/test -e "(print 'done-loading)"
-    - ros dynamic-space-size=4096 exec rove json-schema.asd
+# test-job: &test
+#   stage: test
+#   install:
+#     # Install Roswell
+#     - curl -L https://raw.githubusercontent.com/snmsts/roswell/release/scripts/install-for-ci.sh | sh
+#     - ros install fukamachi/rove
+#   before_script:
+#     - ros --version
+#     - ros config
+#   script:
+#     - ros -s json-schema/test -e "(print 'done-loading)"
+#     - ros dynamic-space-size=4096 exec rove json-schema.asd
 
 jobs:
   fast_finish: true
-  allow_failures:
-    - env: LISP=clisp
-    - env: LISP=abcl
-    - env: LISP=ecl
+  # allow_failures:
+  #   - env: LISP=clisp
+  #   - env: LISP=abcl
+  #   - env: LISP=ecl
   include:
-    - <<: *test
-      env:
-        - LISP=sbcl-bin COVERALLS=true
-    - <<: *test
-      env:
-        - LISP=ccl-bin
-    - <<: *test
-      env:
-        - LISP=ecl
-    - <<: *test
-      env:
-        - LISP=allegro
-    - <<: *test
-      env:
-        - LISP=abcl
+    # - <<: *test
+    #   env:
+    #     - LISP=sbcl-bin COVERALLS=true
+    # - <<: *test
+    #   env:
+    #     - LISP=ccl-bin
+    # - <<: *test
+    #   env:
+    #     - LISP=ecl
+    # - <<: *test
+    #   env:
+    #     - LISP=allegro
+    # - <<: *test
+    #   env:
+    #     - LISP=abcl
+    - name: test
+      stage: test
+      before_script:
+        - docker pull parentheticalenterprises/sbcl-quicklisp-rove:latest
+      script:
+        - docker run --rm -it -v $PWD:/app:Z parentheticalenterprises/sbcl-quicklisp-rove:latest bash -c "cd /app && make test"
     - name: update docs
       stage: deploy
       before_script:
