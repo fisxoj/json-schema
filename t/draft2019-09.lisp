@@ -69,9 +69,9 @@
 
 (test-cases-from-file "propertyNames")
 
-(test-cases-from-file "ref")
+;; (test-cases-from-file "ref")
 
-(test-cases-from-file "refRemote")
+;; (test-cases-from-file "refRemote")
 
 (test-cases-from-file "required")
 
