@@ -35,7 +35,7 @@ test-job: &test
     - ros --version
     - ros config
   script:
-    - rove json-schema.asd
+    - ros dynamic-space-size=4096 exec rove json-schema.asd
 
 jobs:
   fast_finish: true
