@@ -35,6 +35,7 @@ test-job: &test
     - ros --version
     - ros config
   script:
+    - ros -s json-schema/test -e "(print 'done-loading)"
     - ros dynamic-space-size=4096 exec rove json-schema.asd
 
 jobs:
