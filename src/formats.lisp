@@ -66,8 +66,9 @@
 (defun draft3-timep (value)
   (flet ((timelikep (value)
            (multiple-value-bind (matchp matches)
-               (ppcre:scan-to-strings "[0-2]?[0-9]:[0-5][0-9]:[0-5][0-9]" value)
-             (when matchp
+               (ppcre:scan-to-strings "([0-2]?[0-9]):([0-5][0-9]):([0-5][0-9])"
+                                      value)
+             (when (and matchp (= (length matches) 3))
                (and (<= 0 (parse-integer (svref matches 0)) 24)
                     (<= 0 (parse-integer (svref matches 1)) 59)
                     (<= 0 (parse-integer (svref matches 2)) 59))))))
