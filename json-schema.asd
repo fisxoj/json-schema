@@ -10,6 +10,7 @@
                (:file "parse")
                (:file "types")
                (:file "reference")
+               (:file "formats")
                (:file "validators")
                (:file "json-schema"))
   :depends-on ("alexandria"

@@ -1,5 +1,6 @@
 (defpackage :json-schema.validators
-  (:local-nicknames (:types :json-schema.types)
+  (:local-nicknames (:formats :json-schema.formats)
+                    (:types :json-schema.types)
                     (:utils :json-schema.utils)
                     (:reference :json-schema.reference))
   (:use :cl :alexandria)
@@ -271,6 +272,21 @@
              "~d must be strictly more than ~a"
              data minimum))
 
+(defvfun format-validator type
+  (require-type "string")
+
+  (flet ((validate ()
+           (ecase *schema-version*
+             (:draft2019-09 (formats:draft2019-09 data type))
+             (:draft7       (formats:draft7 data type))
+             (:draft6       (formats:draft6 data type))
+             (:draft4       (formats:draft4 data type))
+             (:draft3       (formats:draft3 data type)))))
+
+    (condition (validate)
+               "~a is not of format ~a."
+               data type)))
+
 
 (defvfun if-validator condition-schema
   (if (null (validate condition-schema data))
@@ -538,6 +554,7 @@
   "enum" enum
   "exclusiveMaximum" exclusive-maximum
   "exclusiveMinimum" exclusive-minimum
+  "format" format-validator
   "if" if-validator
   "items" items
   "maximum" maximum
