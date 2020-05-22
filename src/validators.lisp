@@ -72,42 +72,77 @@
 (defun validate (schema data &optional (schema-version *schema-version*))
   (check-type schema-version schema-version)
 
-  (ecase schema-version
-    (:draft2019-09
-     (cond
-       ((typep schema 'utils:json-boolean)
-        (if (eq schema :true)
-            nil
-            (list
-             (make-instance 'validation-failed-error
-                            :property-name ""
-                            :error-message "Schema :false is always false."))))
+  (let ((*schema-version* schema-version))
+    (ecase schema-version
+      (:draft2019-09
+       (cond
+         ((typep schema 'utils:json-boolean)
+          (if (eq schema :true)
+              nil
+              (list
+               (make-instance 'validation-failed-error
+                              :property-name ""
+                              :error-message "Schema :false is always false."))))
 
-       ((utils:empty-object-p schema)
-        nil)
+         ((utils:empty-object-p schema)
+          nil)
 
-       ((typep schema 'json-schema.utils:object)
-        (let* ((resolved-schema (reference:ensure-resolved schema)))
+         ((typep schema 'json-schema.utils:object)
+          (let* ((resolved-schema (reference:ensure-resolved schema)))
 
-          (loop for property in (utils:object-keys resolved-schema)
-                for value = (utils:object-get property resolved-schema)
-                appending (handler-case (progn
-                                          (draft2019-09 resolved-schema
-                                                        property
-                                                        value
-                                                        data)
-                                          nil)
+            (loop for property in (utils:object-keys resolved-schema)
+                  for value = (utils:object-get property resolved-schema)
+                  appending (handler-case (progn
+                                            (draft2019-09 resolved-schema
+                                                          property
+                                                          value
+                                                          data)
+                                            nil)
 
-                            (no-validator-condition (c)
-                              (warn "No validator for field ~a - skipping."
-                                    (slot-value c 'field-name))
-                              nil)
+                              (no-validator-condition (c)
+                                (warn "No validator for field ~a - skipping."
+                                      (slot-value c 'field-name))
+                                nil)
 
-                            (validation-failed-error (error)
-                              (list error))))))))))
+                              (validation-failed-error (error)
+                                (list error))))))))
+
+      (:draft7
+       (cond
+         ((typep schema 'utils:json-boolean)
+          (if (eq schema :true)
+              nil
+              (list
+               (make-instance 'validation-failed-error
+                              :property-name ""
+                              :error-message "Schema :false is always false."))))
+
+         ((utils:empty-object-p schema)
+          nil)
+
+         ((typep schema 'json-schema.utils:object)
+          (let* ((resolved-schema (reference:ensure-resolved schema)))
+
+            (loop for property in (utils:object-keys resolved-schema)
+                  for value = (utils:object-get property resolved-schema)
+                  appending (handler-case (progn
+                                            (draft7 resolved-schema
+                                                    property
+                                                    value
+                                                    data)
+                                            nil)
+
+                              (no-validator-condition (c)
+                                (warn "No validator for field ~a - skipping."
+                                      (slot-value c 'field-name))
+                                nil)
+
+                              (validation-failed-error (error)
+                                (list error)))))))))))
 
 
 ;;; Validation functions for individaul properties
+
 
 
 (defun noop (schema property data)
@@ -455,6 +490,42 @@
 
 
 (def-validator draft2019-09
+  "$defs" noop
+  "$ref" noop
+  "additionalItems" additional-items
+  "additionalProperties" additional-properties
+  "allOf" all-of
+  "anyOf" any-of
+  "const" const
+  "contains" contains
+  "else" noop
+  "enum" enum
+  "exclusiveMaximum" exclusive-maximum
+  "exclusiveMinimum" exclusive-minimum
+  "if" if-validator
+  "items" items
+  "maximum" maximum
+  "maxItems" max-items
+  "maxLength" max-length
+  "maxProperties" max-properties
+  "minimum" minimum
+  "minItems" min-items
+  "minLength" min-length
+  "minProperties" min-properties
+  "multipleOf" multiple-of
+  "not" not-validator
+  "oneOf" one-of
+  "patternProperties" pattern-properties
+  "properties" properties
+  "propertyNames" property-names
+  "pattern" pattern
+  "required" required
+  "then" noop
+  "type" type-validator
+  "uniqueItems" unique-items)
+
+
+(def-validator draft7
   "$defs" noop
   "$ref" noop
   "additionalItems" additional-items
