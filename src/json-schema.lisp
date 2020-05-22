@@ -10,7 +10,8 @@
 
 (in-package :json-schema)
 
-(defparameter *schema-version* :draft2019-09)
+
+(defparameter *schema-version* :draft7)
 
 
 (defun validate (schema data &key (schema-version *schema-version*))
