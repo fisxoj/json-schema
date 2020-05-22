@@ -248,7 +248,8 @@
   (require-type "array")
 
   (condition (some (lambda (data) (not (validate contains data))) data)
-             "~a does not contain ~a" data contains))
+             "~a does not contain ~a."
+             data contains))
 
 
 (defvfun enum members
@@ -261,7 +262,7 @@
   (require-type "number")
 
   (condition (not (>= data maximum))
-             "~d must be strictly less than ~a"
+             "~d must be strictly less than ~a."
              data maximum))
 
 
@@ -269,7 +270,7 @@
   (require-type "number")
 
   (condition (not (<= data minimum))
-             "~d must be strictly more than ~a"
+             "~d must be strictly more than ~a."
              data minimum))
 
 (defvfun format-validator type
