@@ -73,8 +73,9 @@
                                                                            :type "json"))))
 
     `(deftest ,(intern (format nil "TEST-~:@(~a~)" name) *package*)
-       ,@(mapcar #'spec-to-deftest
-                 (json-schema.parse:parse test-spec-pathname)))))
+       (let ((json-schema:*schema-version* ,(make-keyword (string-upcase version-from-package))))
+         ,@(mapcar #'spec-to-deftest
+                   (json-schema.parse:parse test-spec-pathname))))))
 
 
 (defun test-case-to-assertion (spec schema-gensym)
