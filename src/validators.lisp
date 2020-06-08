@@ -26,10 +26,16 @@
    (property-name :initarg :property-name :initform nil)
    (sub-errors :initarg :sub-errors :initform nil))
   (:report (lambda (c stream)
-             (format stream "Validation~@[ of property ~S~] failed with error:~2%~a~@[~2%Additionally:~%~{- ~a~%~}~]"
-                     (slot-value c 'property-name)
+             (format stream "~a~@[~2%Additionally:~%~{- ~a~%~}~]"
                      (slot-value c 'error-message)
                      (slot-value c 'sub-errors)))))
+
+
+(defun property-name (name)
+  (let ((string (string-downcase name)))
+    (if (str:ends-with-p "-validator" string)
+        (subseq string 0 (- (length string) #.(length "-VALIDATOR")))
+        string)))
 
 
 (defmacro defvfun (name validation-field &body body)
@@ -41,7 +47,7 @@
                 (condition (form error-string &rest format-args)
                   `(unless ,form
                      (error 'validation-failed-error
-                            :property-name ,,(string-downcase name)
+                            :property-name ,,(property-name name)
                             :error-message (format nil ,error-string
                                                    ,@format-args))))
 
@@ -50,7 +56,7 @@
                     `(when ,errors
                        (error 'validation-failed-error
                               :sub-errors ,errors
-                              :property-name ,,(string-downcase name)
+                              :property-name ,,(property-name name)
                               :error-message (format nil ,error-string
                                                      ,@format-args))))))
 
@@ -193,7 +199,7 @@
                                                       :test #'string=))))
 
          (condition (null additional-properties)
-                    "~a contains more properties (~a) than specified in the schema ~a"
+                    "~S contains more properties (~S) than specified in the schema ~S"
                     data-properties additional-properties schema-properties)))
 
       ((typep value 'utils:object)
@@ -217,8 +223,9 @@
   (loop for sub-schema in sub-schemas
         appending (validate sub-schema data) into errors
         finally (sub-errors errors
-                   "~a didn't satisfy all schemas in ~{~a~^, ~}"
-                   data sub-schemas)))
+                   "~a didn't satisfy all schemas in ~{~/json-schema.utils:json-pretty-printer/~^, ~}"
+                   data
+                   sub-schemas)))
 
 
 (defvfun any-of sub-schemas
@@ -311,7 +318,7 @@
       ;; There is one schema for every item in the array
       (sub-errors (loop for item in data
                         appending (validate items item))
-                  "Errors occurred validating items against ~a."
+                  "Errors occurred validating items against ~/json-schema.utils:json-pretty-printer/."
                   items)))
 
 
@@ -404,7 +411,7 @@
 
 (defvfun not-validator sub-schema
   (condition (not (null (validate sub-schema data)))
-             "~a should not be valid under ~a."
+             "~a should not be valid under ~/json-schema.utils:json-pretty-printer/."
              data sub-schema))
 
 

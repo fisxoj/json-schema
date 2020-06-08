@@ -11,7 +11,8 @@
            #:json-boolean
            #:json-null
            #:json-array
-           #:make-empty-object))
+           #:make-empty-object
+           #:json-pretty-printer))
 
 (in-package :json-schema.utils)
 
@@ -92,3 +93,8 @@
                       (t (equal prop1 prop2)))
                return nil
              finally (return t))))
+
+
+(defun json-pretty-printer (stream json-object at colon)
+  (declare (ignore at colon))
+  (st-json:write-json json-object stream))

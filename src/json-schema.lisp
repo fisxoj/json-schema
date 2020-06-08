@@ -2,8 +2,8 @@
   (:use :cl :alexandria)
   (:local-nicknames (:reference :json-schema.reference)
                     (:validators :json-schema.validators))
-  (:import-from :json-schema.validators
-                :schema-version)
+  (:shadowing-import-from :json-schema.validators
+                          :schema-version)
   (:export #:validate
            #:*schema-version*
            #:schema-version))
@@ -14,9 +14,9 @@
 (defparameter *schema-version* :draft7)
 
 
-(defun validate (schema data &key (schema-version *schema-version*))
+(defun validate (schema data &key (schema-version *schema-version*) (pretty-errors-p t))
   (reference:with-context ()
     (reference:with-pushed-context (schema)
       (if-let ((errors (validators:validate schema data schema-version)))
-        (values nil errors)
+        (values nil (mapcar (if pretty-errors-p #'princ-to-string #'identity) errors))
         (values t nil)))))
