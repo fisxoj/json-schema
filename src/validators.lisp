@@ -95,24 +95,22 @@
           nil)
 
          ((typep schema 'json-schema.utils:object)
-          (let* ((resolved-schema (reference:ensure-resolved schema)))
+          (loop for property in (utils:object-keys schema)
+                for value = (utils:object-get property schema)
+                appending (handler-case (progn
+                                          (draft2019-09 schema
+                                                        property
+                                                        value
+                                                        data)
+                                          nil)
 
-            (loop for property in (utils:object-keys resolved-schema)
-                  for value = (utils:object-get property resolved-schema)
-                  appending (handler-case (progn
-                                            (draft2019-09 resolved-schema
-                                                          property
-                                                          value
-                                                          data)
-                                            nil)
+                            (no-validator-condition (c)
+                              (warn "No validator for field ~a - skipping."
+                                    (slot-value c 'field-name))
+                              nil)
 
-                              (no-validator-condition (c)
-                                (warn "No validator for field ~a - skipping."
-                                      (slot-value c 'field-name))
-                                nil)
-
-                              (validation-failed-error (error)
-                                (list error))))))))
+                            (validation-failed-error (error)
+                              (list error)))))))
 
       (:draft7
        (cond
@@ -128,33 +126,55 @@
           nil)
 
          ((typep schema 'json-schema.utils:object)
-          (let* ((resolved-schema (reference:ensure-resolved schema)))
+          (loop for property in (utils:object-keys schema)
+                for value = (utils:object-get property schema)
+                appending (handler-case (progn
+                                          (draft7 schema
+                                                  property
+                                                  value
+                                                  data)
+                                          nil)
 
-            (loop for property in (utils:object-keys resolved-schema)
-                  for value = (utils:object-get property resolved-schema)
-                  appending (handler-case (progn
-                                            (draft7 resolved-schema
-                                                    property
-                                                    value
-                                                    data)
-                                            nil)
+                            (no-validator-condition (c)
+                              (warn "No validator for field ~a - skipping."
+                                    (slot-value c 'field-name))
+                              nil)
 
-                              (no-validator-condition (c)
-                                (warn "No validator for field ~a - skipping."
-                                      (slot-value c 'field-name))
-                                nil)
-
-                              (validation-failed-error (error)
-                                (list error)))))))))))
+                            (validation-failed-error (error)
+                              (list error))))))))))
 
 
 ;;; Validation functions for individaul properties
 
 
-
 (defun noop (schema property data)
   "This exists to say we have taken care of a property, but we should do nothing with it.  Likely because this property is actually handled by other things.  ``$ref`` is handled by :function:`validate`, ``else`` and ``then`` are handled by :function:`if-validator`, &c."
+
   (declare (ignore schema property data)))
+
+
+(defvfun $ref reference
+  ;; (format t "~&> resolving reference ~S.~%"
+  ;;         reference)
+
+  (multiple-value-bind (resolved-schema new-context-p) (reference:resolve schema)
+    ;; (format t "~& $ref: for ref ~S new-context-p ~S~%"
+    ;;         reference
+    ;;         new-context-p)
+
+    (if new-context-p
+        (reference:with-pushed-context (resolved-schema)
+
+          ;; (format t "~&> testing data ~a against resolved schema ~S.~%"
+          ;;         data
+          ;;         (utils:object-get "$id" resolved-schema))
+
+          (sub-errors (validate resolved-schema data)
+                      "Error validating referred schema at ~S."
+                      reference))
+        (sub-errors (validate resolved-schema data)
+                    "Error validating referred schema at ~S."
+                    reference))))
 
 
 (defvfun additional-items additional-items
@@ -348,8 +368,9 @@
   (require-type "array")
 
   (condition (>= length (length data))
-             "Array ~a must be at most ~d items long."
-             data length))
+             "Array ~/json-schema.utils:json-pretty-printer/ must be at most ~d items long."
+             data
+             length))
 
 
 (defvfun minimum minimum
@@ -515,7 +536,7 @@
 
 (def-validator draft2019-09
   "$defs" noop
-  "$ref" noop
+  "$ref" $ref
   "additionalItems" additional-items
   "additionalProperties" additional-properties
   "allOf" all-of
@@ -551,7 +572,9 @@
 
 (def-validator draft7
   "$defs" noop
-  "$ref" noop
+  "$id" noop
+  "$ref" $ref
+  "$schema" noop
   "additionalItems" additional-items
   "additionalProperties" additional-properties
   "allOf" all-of

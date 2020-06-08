@@ -1,6 +1,7 @@
 (defpackage json-schema.reference
   (:use :cl :alexandria :cl-arrows)
-  (:local-nicknames (:json :st-json))
+  (:local-nicknames (:utils :json-schema.utils)
+                    (:parse :json-schema.parse))
   (:export #:make-reference
            #:with-context
            #:push-context
@@ -10,7 +11,8 @@
            #:with-pushed-context
            #:get-subspec-by-ref
            #:ensure-resolved
-           #:resolve))
+           #:resolve
+           #:get-ref))
 
 (in-package :json-schema.reference)
 
@@ -36,14 +38,16 @@
 
 
 (defstruct context
-  (current-uri nil :type (trivial-types:proper-list string))
-  (references (make-hash-table :test 'equal) :type hash-table))
+  "A container for all state related to resolving references, namely: a stack of context urls"
+  (uri-stack nil :type (trivial-types:proper-list string))
+  (references (make-hash-table :test 'equal) :type hash-table)
+  (named-references (make-hash-table :test'equal) :type hash-table))
 
 
 (defun default-id-fun (schema)
-  (if (not (eq :null schema))
-      (json:getjso "$id" schema)
-      ""))
+  (if (typep schema 'utils:object)
+      (utils:object-get "$id" schema "")
+      (values "" nil)))
 
 
 (defmacro with-context (() &body body)
@@ -52,12 +56,16 @@
 
 
 (defun push-context (schema &optional (id-fun #'default-id-fun))
-  (push (funcall id-fun schema) (context-current-uri *context*))
-  (setf (gethash (funcall id-fun schema) (context-references *context*)) schema))
+  ;; (format t "~& >pc: pushing schema id ~S.~%"
+  ;;         (funcall id-fun schema))
+
+  (let ((uri (make-uri-without-fragment (funcall id-fun schema))))
+    (push uri (context-uri-stack *context*))
+    (setf (gethash uri (context-references *context*)) schema)))
 
 
 (defun pop-context ()
-  (pop (context-current-uri *context*)))
+  (pop (context-uri-stack *context*)))
 
 
 (defmacro with-pushed-context ((schema &optional (id-fun ''default-id-fun)) &body body)
@@ -69,6 +77,17 @@
        (pop-context))))
 
 
+(defun get-current-uri ()
+  (assert (not (null (context-uri-stack *context*))) nil
+          "No uris in context stack.")
+
+  (first (context-uri-stack *context*)))
+
+
+(defun get-current-schema ()
+  (gethash (get-current-uri) (context-references *context*)))
+
+
 (defun unescape (string)
   "Unescape a string to replace ~0 and ~1 with ~ and /."
 
@@ -78,7 +97,7 @@
       (loop for char = (read-char in nil nil)
             for next-char = (peek-char nil in nil nil)
 
-            while (not (null char))
+            while char
 
             do (cond
                  ((and (char= char #\~) (char= next-char #\0))
@@ -111,12 +130,20 @@
 
 
 (defclass reference ()
-  ((relative-path :type (trivial-types:proper-list string)
+  ((relative-path :type (or string ;; location-independent reference
+                            (trivial-types:proper-list string)) ;; json pointer
                   :initarg :relative-path
                   :accessor relative-path-of)
    (uri :type string
         :initarg :uri
         :accessor uri-of)))
+
+
+(defmethod print-object ((object reference) stream)
+  (print-unreadable-object (object stream :type t)
+    (format stream "uri: ~S path: ~S"
+            (uri-of object)
+            (relative-path-of object))))
 
 
 (defun reference-eq (reference1 reference2)
@@ -141,51 +168,82 @@
           (subseq (str:split #\/ relative-path-string) 1)))
 
 
+(defun make-uri-without-fragment (uri)
+  (-> (typecase uri
+        (quri:uri uri)
+        (string (quri:uri uri)))
+      (quri:copy-uri :fragment nil
+                     :query nil)
+      quri:render-uri))
+
+
 (defun make-reference (reference-string)
-  (let ((uri (quri:uri reference-string)))
+  (let* ((uri (quri:uri reference-string))
+         (fragment (quri:uri-fragment uri)))
+
     (make-instance 'reference
-                   :relative-path (make-relative-path-list (quri:uri-fragment uri))
-                   :uri (quri:render-uri (quri:copy-uri uri
-                                                        :fragment nil
-                                                        :query nil)))))
+                   :relative-path (unless (zerop (length fragment))
+                                    (if (char= (char fragment 0) #\/)
+                                        ;; json-pointer
+                                        (make-relative-path-list fragment)
+                                        ;; location-independent
+                                        (str:concat "#" fragment)))
+                   :uri (make-uri-without-fragment uri))))
 
 
 (defun relative-reference-p (reference)
+  (check-type reference reference)
   (string= "" (uri-of reference)))
 
 
 (defun fetch-reference (uri)
-  (-> uri
-      (dex:get :read-timeout 10
-               :connect-timeout 10
-               :want-stream t)
-      json:read-json))
+  (flet ((store-schema (schema)
+           (setf (gethash uri (context-references *context*)) schema)))
+    (-> uri
+        (dex:get :read-timeout 10
+                 :connect-timeout 10)
+        babel:octets-to-string
+        parse:parse
+        store-schema)))
 
 
 (defun get-ref (spec)
-  (json:getjso "$ref" spec))
+  (utils:object-get "$ref" spec))
 
 
 (defun ref-p (spec)
   "A spec is a reference if it has only one key which is ``$ref``."
 
   (and (not (null spec))
-       (nth-value 1 (json:getjso "$ref" spec))))
+       (nth-value 1 (get-ref spec))))
 
 
-(defun get-subspec-by-ref (spec ref)
-  (let ((path-list (if (stringp ref)
-                       (make-relative-path-list ref)
-                       ref)))
+(defun get-subspec-by-reference (reference)
+  (let ((relative-path (relative-path-of reference)))
 
-    (loop for component of-type (or integer string) in path-list
+    (cond
+      ((stringp relative-path)
+       ;; location-independent
 
-          if (stringp component)
-            do (setf spec (json:getjso component spec))
-          else
-            do (setf spec (nth component spec))
+       ;; this unless bears some explaining: If we've encountered a location-independent identifier, it means that we could be looking for anything anywhere in this schema :'(.  Anecdotally, this feature doesn't seem widely-used, so we don't walk the document tree until we find out it is, the first time someone tries to use a named reference.  So, when the named references hash table is empty for a uri key, we generate it by walking that whole schema document and finding all the named anchors.
+       (unless (gethash (uri-of reference) (context-named-references *context*))
+         (setf (gethash (uri-of reference) (context-named-references *context*))
+               (alist-hash-table (collect-subschemas (get-current-schema))
+                                 :test 'equal)))
 
-          finally (return spec))))
+       (gethash relative-path (gethash (uri-of reference) (context-named-references *context*))))
+
+      ((proper-list-p relative-path)
+       ;; json pointer
+       (loop with spec = (get-current-schema)
+             for component of-type (or integer string) in relative-path
+
+             if (stringp component)
+               do (setf spec (utils:object-get component spec))
+             else ;; an integer
+               do (setf spec (nth component spec))
+
+             finally (return spec))))))
 
 
 (defun ensure-resolved (spec)
@@ -197,18 +255,34 @@
 
 
 (defun relative-to (reference)
-  (let ((current-context (first (context-current-uri *context*))))
-    (if (relative-reference-p reference)
-        current-context
-        (uri-of reference))))
+  (quri:render-uri (quri:merge-uris (uri-of reference) (get-current-uri))))
 
 
 (defun lookup (reference)
-  (when-let ((schema (gethash (relative-to reference) (context-references *context*))))
+  "Look up a schema by reference in the ``*context*``.  Returns ``(values schema new-context-p)``.  ``new-context-p`` indicates that this schema is a new document that should be pushed to the context stack when visited."
 
-    (get-subspec-by-ref schema (relative-path-of reference))))
+  (let ((schema-uri (relative-to reference)))
+    (unless (gethash schema-uri (context-references *context*))
+              (fetch-reference (relative-to reference)))
+
+    (values (get-subspec-by-reference reference) (not (emptyp (uri-of reference))))))
 
 
 (defun resolve (ref)
-  (let ((reference (make-reference (get-ref ref))))
-    (lookup reference)))
+  "Resolves a reference schema object to the referred-to schema."
+
+  (lookup (make-reference (get-ref ref))))
+
+
+(defun collect-subschemas (schema &key (id-fun #'default-id-fun))
+  "Collect all named subschemas into an alist of (name . schema-object)."
+
+  (when (typep schema 'utils:object)
+    (let ((subschema-ids (loop for key in (utils:object-keys schema)
+                               for value = (utils:object-get key schema)
+
+                               appending (collect-subschemas value))))
+      (multiple-value-bind (id found-p) (funcall id-fun schema)
+        (if found-p
+            (list* (cons id schema) subschema-ids)
+            subschema-ids)))))
