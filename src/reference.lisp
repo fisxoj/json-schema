@@ -20,7 +20,8 @@
            #:remote-reference-error
            #:fetching-not-allowed-error
            #:reference-error
-           #:nested-reference-error))
+           #:nested-reference-error
+           #:with-pushed-id))
 
 (in-package :json-schema.reference)
 
@@ -115,6 +116,15 @@
     (populate-named-references-for-schema schema
                                           :id-fun id-fun
                                           :uri (quri:uri uri))))
+
+
+(defmacro with-pushed-id ((id) &body body)
+  (once-only (id)
+    `(unwind-protect
+          (progn
+            (push (quri:render-uri (quri:merge-uris (make-uri-without-fragment ,id) (get-current-uri))) (context-uri-stack *context*))
+            ,@body)
+       (pop-context))))
 
 
 (defun pop-context ()

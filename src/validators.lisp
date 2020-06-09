@@ -125,6 +125,10 @@
          ((utils:empty-object-p schema)
           nil)
 
+         ((and (utils:object-get "$id" schema) (not ignore-id))
+          (reference:with-pushed-id ((utils:object-get "$id" schema))
+            (validate schema data schema-version t)))
+
          ((typep schema 'json-schema.utils:object)
           (loop for property in (utils:object-keys schema)
                 for value = (utils:object-get property schema)
