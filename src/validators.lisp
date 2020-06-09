@@ -31,36 +31,36 @@
                      (slot-value c 'sub-errors)))))
 
 
-(defun property-name (name)
-  (let ((string (string-downcase name)))
-    (if (str:ends-with-p "-validator" string)
-        (subseq string 0 (- (length string) #.(length "-VALIDATOR")))
-        string)))
-
-
 (defmacro defvfun (name validation-field &body body)
-  `(defun ,name (schema ,validation-field data)
-     (macrolet ((require-type (type)
-                  `(unless (validate-type nil ,type data)
-                     (return-from ,',name t)))
+  (flet ((property-name (name)
+           ;; When properties shadow symbols in the CL package, they get named {property}-validator, so clean that off for prettier names
+           (let ((string (string-downcase name)))
+             (if (str:ends-with-p "-validator" string)
+                 (subseq string 0 (- (length string) #.(length "-VALIDATOR")))
+                 string))))
 
-                (condition (form error-string &rest format-args)
-                  `(unless ,form
-                     (error 'validation-failed-error
-                            :property-name ,,(property-name name)
-                            :error-message (format nil ,error-string
-                                                   ,@format-args))))
+    `(defun ,name (schema ,validation-field data)
+       (macrolet ((require-type (type)
+                    `(unless (validate-type nil ,type data)
+                       (return-from ,',name t)))
 
-                (sub-errors (errors error-string &rest format-args)
-                  (once-only (errors)
-                    `(when ,errors
+                  (condition (form error-string &rest format-args)
+                    `(unless ,form
                        (error 'validation-failed-error
-                              :sub-errors ,errors
                               :property-name ,,(property-name name)
                               :error-message (format nil ,error-string
-                                                     ,@format-args))))))
+                                                     ,@format-args))))
 
-       ,@body)))
+                  (sub-errors (errors error-string &rest format-args)
+                    (once-only (errors)
+                      `(when ,errors
+                         (error 'validation-failed-error
+                                :sub-errors ,errors
+                                :property-name ,,(property-name name)
+                                :error-message (format nil ,error-string
+                                                       ,@format-args))))))
+
+         ,@body))))
 
 
 (defun validate-type (schema type data)
@@ -76,7 +76,7 @@
   ((field-name :initarg :field-name)))
 
 
-(defun validate (schema data &optional (schema-version *schema-version*))
+(defun validate (schema data &optional (schema-version *schema-version*) ignore-id)
   (check-type schema-version schema-version)
 
   (let ((*schema-version* schema-version))
@@ -105,7 +105,7 @@
                                           nil)
 
                             (no-validator-condition (c)
-                              (warn "No validator for field ~a - skipping."
+                              (warn "No validator for field ~S - skipping."
                                     (slot-value c 'field-name))
                               nil)
 
@@ -140,7 +140,7 @@
                                           nil)
 
                             (no-validator-condition (c)
-                              (warn "No validator for field ~a - skipping."
+                              (warn "No validator for field ~S - skipping."
                                     (slot-value c 'field-name))
                               nil)
 
@@ -152,7 +152,7 @@
 
 
 (defun noop (schema property data)
-  "This exists to say we have taken care of a property, but we should do nothing with it.  Likely because this property is actually handled by other things.  ``$ref`` is handled by :function:`validate`, ``else`` and ``then`` are handled by :function:`if-validator`, &c."
+  "This exists to say we have taken care of a property, but we should do nothing with it.  Likely because this property is actually handled by other things.  ``else`` and ``then`` are handled by :function:`if-validator`, &c."
 
   (declare (ignore schema property data)))
 
