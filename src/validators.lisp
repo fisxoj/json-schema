@@ -266,6 +266,11 @@
              data contains))
 
 
+(defvfun description description
+  (condition (stringp description)
+             "Description must be a string."))
+
+
 (defvfun enum members
   (condition (member data members :test #'utils:json-equal-p)
              "~a isn't one of ~{~a~^, ~}."
@@ -568,6 +573,7 @@
   "anyOf" any-of
   "const" const
   "contains" contains
+  "description" description
   "else" noop
   "enum" enum
   "exclusiveMaximum" exclusive-maximum
