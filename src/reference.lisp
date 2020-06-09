@@ -12,7 +12,15 @@
            #:get-subspec-by-ref
            #:ensure-resolved
            #:resolve
-           #:get-ref))
+           #:get-ref
+           #:with-resolved-ref
+           #:*resolve-remote-references*
+
+           ;; conditions
+           #:remote-reference-error
+           #:fetching-not-allowed-error
+           #:reference-error
+           #:nested-reference-error))
 
 (in-package :json-schema.reference)
 
@@ -23,18 +31,60 @@
   "The lookup context for references.")
 
 
-(define-condition remote-reference-error ()
-  ((reference :type reference
-              :initarg :reference)
-   (location :initarg :location
-             :initform nil))
-  (:report (lambda (c stream)
-             (with-slots (reference location) c
-               (format stream "Encountered an absolute path (~S) in a reference~@[ (~S)~], but *resolve-remote-references* is NIL." reference location)))))
+(defparameter +max-lookup-depth+ 100
+  "Maximum number of nested references to allow before throwing a :class:`nested-reference-error`.")
 
 
-(defvar *resolve-remote-references* nil
+(defvar *current-lookup-depth* 0
+  "Dynamic variable for tracking reference nesting depth.")
+
+
+(defvar *resolve-remote-references* t
   "Whether to download other schemas for references.  Will error if another uri is referenced in a schema and this var is set to ``nil``.")
+
+
+(defmacro with-lookup-depth-tracking (&body body)
+  `(unwind-protect
+        (progn
+          (incf *current-lookup-depth*)
+          (when (> *current-lookup-depth* +max-lookup-depth+)
+            (error 'nested-reference-error))
+          ,@body)
+     (decf *current-lookup-depth*)))
+
+
+(define-condition reference-error (error)
+  ((message :type string
+            :initarg :message))
+
+  (:report (lambda (c stream)
+             (format stream "JSON Schema reference error: ~a"
+                     (slot-value c 'message)))))
+
+
+(define-condition fetching-not-allowed-error (reference-error)
+  ((remote-uri :type string
+               :initarg :uri))
+
+  (:report (lambda (c stream)
+             (format stream "JSON Schema reference error: need to fetch ~S but *RESOLVE-REMOTE-REFERENCES* is nil."
+                     (slot-value c 'remote-uri)))))
+
+
+(define-condition remote-reference-error (reference-error)
+  ((remote-uri :type string
+               :initarg :uri))
+  (:report (lambda (c stream)
+             (format stream "JSON Schema reference error, when fetching ~S: ~a"
+                     (slot-value c 'remote-uri)
+                     (slot-value c 'message)))))
+
+
+(define-condition nested-reference-error (reference-error)
+  ()
+  (:report (lambda (c stream)
+             (format stream "Reference nesting depth of ~d exceeded."
+                     +max-lookup-depth+))))
 
 
 (defstruct context
@@ -56,12 +106,15 @@
 
 
 (defun push-context (schema &optional (id-fun #'default-id-fun))
-  ;; (format t "~& >pc: pushing schema id ~S.~%"
+  ;; (format t "~&> pc: pushing schema id ~S.~%"
   ;;         (funcall id-fun schema))
 
   (let ((uri (make-uri-without-fragment (funcall id-fun schema))))
     (push uri (context-uri-stack *context*))
-    (setf (gethash uri (context-references *context*)) schema)))
+    (setf (gethash uri (context-references *context*)) schema)
+    (populate-named-references-for-schema schema
+                                          :id-fun id-fun
+                                          :uri (quri:uri uri))))
 
 
 (defun pop-context ()
@@ -75,6 +128,29 @@
             (push-context ,schema ,id-fun)
             ,@body)
        (pop-context))))
+
+
+(defmacro with-resolved-ref ((ref resolved-schema &optional (id-fun ''default-id-fun)) &body body)
+
+  (once-only (ref)
+    (with-gensyms (resolved-p schema-uri id found-p)
+      `(multiple-value-bind (,resolved-schema ,resolved-p ,schema-uri)
+           (resolve ,ref)
+
+         (if ,resolved-p
+             (unwind-protect
+                  (progn
+                    (push-context ,resolved-schema
+                                  (lambda (s)
+                                    ;; If the schema contains an id, great.  If not, use the url we fetched it from.
+                                    (multiple-value-bind (,id ,found-p)
+                                        (funcall ,id-fun s)
+                                      (if ,found-p
+                                          ,id
+                                          ,schema-uri))))
+                    ,@body)
+               (pop-context))
+             (progn ,@body))))))
 
 
 (defun get-current-uri ()
@@ -197,14 +273,35 @@
 
 
 (defun fetch-reference (uri)
-  (flet ((store-schema (schema)
-           (setf (gethash uri (context-references *context*)) schema)))
-    (-> uri
-        (dex:get :read-timeout 10
-                 :connect-timeout 10)
-        babel:octets-to-string
-        parse:parse
-        store-schema)))
+  (unless *resolve-remote-references*
+    (error 'fetching-not-allowed-error
+           :uri uri))
+
+  (handler-case
+      (flet ((store-schema (schema)
+               (setf (gethash uri (context-references *context*)) schema)
+               (populate-named-references-for-schema schema
+                                                     :id-fun #'default-id-fun
+                                                     :uri (quri:uri uri))
+               schema))
+
+        (-> uri
+            (dex:get :read-timeout 10
+                     :connect-timeout 10
+                     :force-binary t)
+            babel:octets-to-string
+            parse:parse
+            store-schema))
+    (usocket:connection-refused-error (error)
+      (declare (ignore error))
+      (error 'remote-reference-error
+             :message "connection refused"
+             :uri uri))
+    (usocket:timeout-error (error)
+      (declare (ignore error))
+      (error 'remote-reference-error
+             :message "connection timed out"
+             :uri uri))))
 
 
 (defun get-ref (spec)
@@ -218,34 +315,6 @@
        (nth-value 1 (get-ref spec))))
 
 
-(defun get-subspec-by-reference (reference)
-  (let ((relative-path (relative-path-of reference)))
-
-    (cond
-      ((stringp relative-path)
-       ;; location-independent
-
-       ;; this unless bears some explaining: If we've encountered a location-independent identifier, it means that we could be looking for anything anywhere in this schema :'(.  Anecdotally, this feature doesn't seem widely-used, so we don't walk the document tree until we find out it is, the first time someone tries to use a named reference.  So, when the named references hash table is empty for a uri key, we generate it by walking that whole schema document and finding all the named anchors.
-       (unless (gethash (uri-of reference) (context-named-references *context*))
-         (setf (gethash (uri-of reference) (context-named-references *context*))
-               (alist-hash-table (collect-subschemas (get-current-schema))
-                                 :test 'equal)))
-
-       (gethash relative-path (gethash (uri-of reference) (context-named-references *context*))))
-
-      ((proper-list-p relative-path)
-       ;; json pointer
-       (loop with spec = (get-current-schema)
-             for component of-type (or integer string) in relative-path
-
-             if (stringp component)
-               do (setf spec (utils:object-get component spec))
-             else ;; an integer
-               do (setf spec (nth component spec))
-
-             finally (return spec))))))
-
-
 (defun ensure-resolved (spec)
   "Resolve a reference if it exists, otherwise return the object.  Returns a second value indicating if there was a reference."
 
@@ -254,18 +323,60 @@
       (values spec nil)))
 
 
-(defun relative-to (reference)
+(defun absolute-uri (reference)
+  "Return an absolute URI for the reference in the current context."
+
   (quri:render-uri (quri:merge-uris (uri-of reference) (get-current-uri))))
 
 
 (defun lookup (reference)
   "Look up a schema by reference in the ``*context*``.  Returns ``(values schema new-context-p)``.  ``new-context-p`` indicates that this schema is a new document that should be pushed to the context stack when visited."
 
-  (let ((schema-uri (relative-to reference)))
-    (unless (gethash schema-uri (context-references *context*))
-              (fetch-reference (relative-to reference)))
+  (with-lookup-depth-tracking
+    (let* ((schema-uri (absolute-uri reference))
+           (relative-path (relative-path-of reference))
+           (new-context-p (not (string= schema-uri (get-current-uri)))))
 
-    (values (get-subspec-by-reference reference) (not (emptyp (uri-of reference))))))
+      (flet ((ensure-schema-fetched ()
+               (unless (gethash schema-uri (context-references *context*))
+                 (fetch-reference schema-uri))))
+
+        (etypecase relative-path
+          (string
+           ;; location-independent
+           (ensure-schema-fetched)
+
+           (values (gethash relative-path (gethash (uri-of reference) (context-named-references *context*)))
+                   new-context-p
+                   schema-uri))
+
+          (proper-list
+           ;; json pointer
+
+           (ensure-schema-fetched)
+
+           (multiple-value-bind (schema found-p)
+               (gethash schema-uri (context-references *context*))
+
+             (if found-p
+                 (values (loop with spec = schema
+                               for component of-type (or integer string) in relative-path
+
+                               if (stringp component)
+                                 do (setf spec (utils:object-get component spec))
+                               else ;; an integer
+                               do (setf spec (nth component spec))
+
+                               finally (return spec))
+                         new-context-p
+                         schema-uri)
+                 (values nil nil schema-uri))))
+
+          (null
+           ;; no relative part
+           (values (gethash schema-uri (context-references *context*))
+                   new-context-p
+                   schema-uri)))))))
 
 
 (defun resolve (ref)
@@ -274,15 +385,59 @@
   (lookup (make-reference (get-ref ref))))
 
 
-(defun collect-subschemas (schema &key (id-fun #'default-id-fun))
+(defun collect-subschemas (schema &key (id-fun #'default-id-fun) current-uri properties-p)
   "Collect all named subschemas into an alist of (name . schema-object)."
 
   (when (typep schema 'utils:object)
-    (let ((subschema-ids (loop for key in (utils:object-keys schema)
-                               for value = (utils:object-get key schema)
+    (multiple-value-bind (id found-p) (funcall id-fun schema)
+      (let* ((current-uri (cond
+                            ;; properties-p: we don't want to collect any "$id" properties
+                            ;; that are direct children of a "properties" field.  This is a
+                            ;; bit hacky, but is important because this happens in the
+                            ;; meta-schemas.
+                            (properties-p
+                             current-uri)
+                            ((and found-p current-uri)
+                             (quri:merge-uris id current-uri))
+                            (found-p
+                             (quri:uri id))
+                            (current-uri
+                             current-uri)))
+             (subschema-ids (loop for key in (utils:object-keys schema)
+                                  for maybe-schema = (utils:object-get key schema)
 
-                               appending (collect-subschemas value))))
-      (multiple-value-bind (id found-p) (funcall id-fun schema)
-        (if found-p
-            (list* (cons id schema) subschema-ids)
+                                  appending (collect-subschemas maybe-schema
+                                                                :id-fun id-fun
+                                                                :current-uri current-uri
+                                                                :properties-p (utils:object-get "properties" schema)))))
+        (if (and found-p (not properties-p))
+            (list* (cons current-uri schema) subschema-ids)
             subschema-ids)))))
+
+
+(defun populate-named-references-for-schema (schema &key (id-fun #'default-id-fun) uri)
+  "Takes an alist of (uri . schema) and populates the appropriate hash tables in the named references slot of the context.  Takes the output from collect subschemas, which may return named references for many uri's, since documents are allowed to insist they have whatever uri they want whenever they want."
+
+  (loop for (uri . schema) in (collect-subschemas schema :id-fun id-fun :current-uri uri)
+        for reference = (make-reference uri)
+
+        ;; do (format t "~&Setting named reference ~S for document ~S."
+        ;;            (relative-path-of reference)
+        ;;            (uri-of reference))
+
+        unless (gethash (uri-of reference) (context-named-references *context*))
+          do (setf (gethash (uri-of reference) (context-named-references *context*))
+                   (make-hash-table :test 'equal))
+
+        when (relative-path-of reference)
+          do (setf (gethash (relative-path-of reference) (gethash (uri-of reference) (context-named-references *context*)))
+                   schema)
+
+        unless (gethash (uri-of reference) (context-references *context*))
+          ;; pretend this is a document we downloaded...
+          do (if (relative-path-of reference)
+                 ;; We're expected to resolve against these uris and not fetch them, soooo....
+                 (setf (gethash (uri-of reference) (context-references *context*))
+                       :stub)
+                 (setf (gethash (uri-of reference) (context-references *context*))
+                       schema))))
