@@ -140,7 +140,7 @@
          (if ,resolved-p
              (unwind-protect
                   (progn
-                    (push-context ,resolved-schema
+                    (push-context (gethash ,resolved-schema (context-references *context*))
                                   (lambda (s)
                                     ;; If the schema contains an id, great.  If not, use the url we fetched it from.
                                     (multiple-value-bind (,id ,found-p)
