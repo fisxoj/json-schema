@@ -158,27 +158,10 @@
 
 
 (defvfun $ref reference
-  ;; (format t "~&> resolving reference ~S.~%"
-  ;;         reference)
-
-  (multiple-value-bind (resolved-schema new-context-p) (reference:resolve schema)
-    ;; (format t "~& $ref: for ref ~S new-context-p ~S~%"
-    ;;         reference
-    ;;         new-context-p)
-
-    (if new-context-p
-        (reference:with-pushed-context (resolved-schema)
-
-          ;; (format t "~&> testing data ~a against resolved schema ~S.~%"
-          ;;         data
-          ;;         (utils:object-get "$id" resolved-schema))
-
-          (sub-errors (validate resolved-schema data)
-                      "Error validating referred schema at ~S."
-                      reference))
-        (sub-errors (validate resolved-schema data)
-                    "Error validating referred schema at ~S."
-                    reference))))
+  (reference:with-resolved-ref (schema resolved-schema)
+    (sub-errors (validate resolved-schema data)
+                "Error validating referred schema at ~S."
+                reference)))
 
 
 (defvfun additional-items additional-items
