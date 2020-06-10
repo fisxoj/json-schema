@@ -37,7 +37,8 @@
   (and (stringp value)
        (ppcre:scan +hostname-regex+ value)
        (every (lambda (component) (< (length component) 64))
-              (str:split #\. value))))
+              (str:split #\. value))
+       (not (str:ends-with-p "-" value))))
 
 
 (defun ip-v4-address-p (value)
