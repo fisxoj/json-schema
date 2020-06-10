@@ -80,6 +80,7 @@
 
 (test-cases-from-file "optional/bignum")
 
+(test-cases-from-file "optional/zeroTerminatedFloats")
 
 (test-cases-from-file "optional/format/date")
 
