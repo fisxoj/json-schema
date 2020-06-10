@@ -147,6 +147,54 @@
                             (validation-failed-error (error)
                               (list error))))))))))
 
+;;; Helpers for validators
+
+(defun check-dependencies (property-name dependencies data &key (allow-arrays t) (allow-objects t))
+  (flet ((check-dependency (key dependency)
+           (etypecase dependency
+             (utils:json-array
+              (unless allow-arrays
+                (make-instance 'validation-failed-error
+                               :property property-name
+                               :error-message (format nil "~d is not a valid dependency."
+                                              dependency)))
+              (unless (every (lambda (dependency-key)
+                               (nth-value 1 (utils:object-get dependency-key data)))
+                             dependency)
+                (make-instance 'validation-failed-error
+                               :property-name "dependencies"
+                               :error-message (format nil "Field ~S depends on fields ~S, but some were missing."
+                                                      key
+                                                      (utils:object-get key dependencies)))))
+
+             ;; A subschema... 😭
+             (utils:object
+              (unless allow-objects
+                (make-instance 'validation-failed-error
+                               :property property-name
+                               :error-message (format nil "~d is not a valid dependency."
+                                              dependency)))
+              (when-let ((validation-errors (validate dependency data *schema-version*)))
+                (make-instance 'validation-failed-error
+                               :property-name property-name
+                               :error-message (format nil "Field ~S depends on the schema ~/json-schema.utils:json-pretty-printer/ being valid, but it wasn't."
+                                                      key
+                                                      dependency))))
+             ;; maybe true, false, null
+             (t
+              (when-let ((validation-errors (validate dependency data *schema-version*)))
+                (make-instance 'validation-failed-error
+                               :property-name property-name
+                               :error-message (format nil "Field ~S depends on the schema ~/json-schema.utils:json-pretty-printer/ being valid, but it wasn't."
+                                                      key
+                                                      dependency)))))))
+
+    (remove-if #'null
+               (loop for key in (utils:object-keys dependencies)
+                     when (nth-value 1 (utils:object-get key data))
+                       ;; when the key is found in the data
+                       collecting (check-dependency key (utils:object-get key dependencies))))))
+
 
 ;;; Validation functions for individaul properties
 
@@ -271,61 +319,32 @@
              "Description must be a string."))
 
 
-(defvfun dependent-required dependencies
+
+(defvfun dependencies dependencies
   (require-type "object")
 
-  (let ((failed-dependencies (remove-if #'null
-                       (loop for key in (utils:object-keys dependencies)
-                             when (nth-value 1 (utils:object-get key data))
-                               unless (every (lambda (dependency-key)
-                                               (nth-value 1 (utils:object-get dependency-key data)))
-                                             (utils:object-get key dependencies))
-                               ;; when the key is found in the data
-                                 collecting (make-instance 'validation-failed-error
-                               :property-name "dependencies"
-                               :error-message (format nil "Field ~S depends on fields ~S, but some were missing."
-                                                      key
-                                                      (utils:object-get key dependencies)))))))
+  (let ((failed-dependencies (check-dependencies "dependencies" dependencies data)))
 
     (sub-errors failed-dependencies
                 "There were failed dependencies.")))
 
 
-(defvfun dependencies dependencies
+(defvfun dependent-required dependencies
   (require-type "object")
 
-  (flet ((check-dependency (key dependency)
-           (etypecase dependency
-             (utils:json-array
-              (unless (every (lambda (dependency-key)
-                               (nth-value 1 (utils:object-get dependency-key data)))
-                             dependency)
-                (make-instance 'validation-failed-error
-                               :property-name "dependencies"
-                               :error-message (format nil "Field ~S depends on fields ~S, but some were missing."
-                                                      key
-                                                      (utils:object-get key dependencies)))))
+  (let ((failed-dependencies (check-dependencies "dependentRequired" dependencies data :allow-objects nil)))
 
-             ;; A subschema... 😭
-             ;; maybe an object, maybe true, false
-             (t
-              (when-let ((validation-errors (validate dependency data *schema-version*)))
-                (make-instance 'validation-failed-error
-                               :property-name "dependencies"
-                               :error-message (format nil "Field ~S depends on the schema ~/json-schema.utils:json-pretty-printer/ being valid, but it wasn't."
-                                                      key
-                                                      dependency)))))))
+    (sub-errors failed-dependencies
+                "There were failed dependencies.")))
 
-    (let ((failed-dependencies
-            (remove-if #'null
-                       (loop for key in (utils:object-keys dependencies)
-                             when (nth-value 1 (utils:object-get key data))
-                               ;; when the key is found in the data
-                               collecting (check-dependency key (utils:object-get key dependencies))))))
 
-      (sub-errors failed-dependencies
-                  "There were failed dependencies."))))
+(defvfun dependent-schemas schemas
+  (require-type "object")
 
+  (let ((failed-dependencies (check-dependencies "dependentSchemas" schemas data :allow-arrays nil)))
+
+    (sub-errors failed-dependencies
+                "There were failed dependencies.")))
 
 (defvfun enum members
   (condition (member data members :test #'utils:json-equal-p)
@@ -597,6 +616,7 @@
   "const" const
   "contains" contains
   "dependentRequired" dependent-required
+  "dependentSchemas" dependent-schemas
   "else" noop
   "enum" enum
   "exclusiveMaximum" exclusive-maximum
