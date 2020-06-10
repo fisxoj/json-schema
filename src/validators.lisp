@@ -545,7 +545,7 @@
 (defvfun unique-items unique
   (require-type "array")
 
-  (when unique
+  (when (eq unique :true)
     (condition (= (length data)
                   (length (remove-duplicates data :test 'utils:json-equal-p)))
                "Not all items in ~{~a~^, ~} are unique."
