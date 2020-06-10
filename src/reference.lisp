@@ -44,6 +44,10 @@
   "Whether to download other schemas for references.  Will error if another uri is referenced in a schema and this var is set to ``nil``.")
 
 
+(defvar *id-fun* 'default-id-fun
+  "A default function for getting ids from schemas.  Should return (values id found-p) like gethash.")
+
+
 (defmacro with-lookup-depth-tracking (&body body)
   `(unwind-protect
         (progn
@@ -112,10 +116,17 @@
 
   (let ((uri (make-uri-without-fragment (funcall id-fun schema))))
     (push uri (context-uri-stack *context*))
-    (setf (gethash uri (context-references *context*)) schema)
+
+    (unless (gethash uri (context-references *context*))
+      (setf (gethash uri (context-references *context*)) schema))
+
     (populate-named-references-for-schema schema
                                           :id-fun id-fun
                                           :uri (quri:uri uri))))
+
+
+(defun pop-context ()
+  (pop (context-uri-stack *context*)))
 
 
 (defmacro with-pushed-id ((id) &body body)
@@ -127,11 +138,7 @@
        (pop-context))))
 
 
-(defun pop-context ()
-  (pop (context-uri-stack *context*)))
-
-
-(defmacro with-pushed-context ((schema &optional (id-fun ''default-id-fun)) &body body)
+(defmacro with-pushed-context ((schema &optional (id-fun '*id-fun*)) &body body)
   (once-only (schema)
     `(unwind-protect
           (progn
@@ -140,7 +147,7 @@
        (pop-context))))
 
 
-(defmacro with-resolved-ref ((ref resolved-schema &optional (id-fun ''default-id-fun)) &body body)
+(defmacro with-resolved-ref ((ref resolved-schema &optional (id-fun '*id-fun*)) &body body)
 
   (once-only (ref)
     (with-gensyms (resolved-p schema-uri id found-p)
@@ -150,6 +157,7 @@
          (if ,resolved-p
              (unwind-protect
                   (progn
+                    ;; FIXME: it's definitely happening here
                     (push-context (gethash ,resolved-schema (context-references *context*))
                                   (lambda (s)
                                     ;; If the schema contains an id, great.  If not, use the url we fetched it from.
@@ -158,6 +166,7 @@
                                       (if ,found-p
                                           ,id
                                           ,schema-uri))))
+
                     ,@body)
                (pop-context))
              (progn ,@body))))))
@@ -311,6 +320,11 @@
       (declare (ignore error))
       (error 'remote-reference-error
              :message "connection timed out"
+             :uri uri))
+    (dex:http-request-not-found (error)
+      (declare (ignore error))
+      (error 'remote-reference-error
+             :message (format nil "document not found ~S" (get-current-uri))
              :uri uri))))
 
 
@@ -325,14 +339,6 @@
        (nth-value 1 (get-ref spec))))
 
 
-(defun ensure-resolved (spec)
-  "Resolve a reference if it exists, otherwise return the object.  Returns a second value indicating if there was a reference."
-
-  (if (ref-p spec)
-      (values (resolve spec) t)
-      (values spec nil)))
-
-
 (defun absolute-uri (reference)
   "Return an absolute URI for the reference in the current context."
 
@@ -344,20 +350,31 @@
 
   (with-lookup-depth-tracking
     (let* ((schema-uri (absolute-uri reference))
-           (relative-path (relative-path-of reference))
-           (new-context-p (not (string= schema-uri (get-current-uri)))))
+           (relative-path (relative-path-of reference)))
 
       (flet ((ensure-schema-fetched ()
                (unless (gethash schema-uri (context-references *context*))
-                 (fetch-reference schema-uri))))
+                 (fetch-reference schema-uri)))
+             (new-context-p ()
+               ;; some loookups might change the uri by id,
+               ;; so this is a function to calculate it at return time
+               (not (string= schema-uri (get-current-uri)))))
 
         (etypecase relative-path
+          (null
+           ;; no relative part
+           (ensure-schema-fetched)
+
+           (values (gethash schema-uri (context-references *context*))
+                   (new-context-p)
+                   schema-uri))
+
           (string
            ;; location-independent
            (ensure-schema-fetched)
 
            (values (gethash relative-path (gethash (uri-of reference) (context-named-references *context*)))
-                   new-context-p
+                   (new-context-p)
                    schema-uri))
 
           (proper-list
@@ -370,23 +387,22 @@
 
              (if found-p
                  (values (loop with spec = schema
-                               for component of-type (or integer string) in relative-path
+                               for (component . rest) on relative-path by #'cdr
 
                                if (stringp component)
-                                 do (setf spec (utils:object-get component spec))
+                                 do (progn
+                                      (setf spec (utils:object-get component spec))
+                                      (when-let ((id (funcall *id-fun* spec)))
+                                        ;; if we're in the same object as an id, leave that off
+                                        (when rest
+                                          (setf schema-uri (quri:render-uri (quri:merge-uris id schema-uri))))))
                                else ;; an integer
                                do (setf spec (nth component spec))
 
                                finally (return spec))
-                         new-context-p
+                         (new-context-p)
                          schema-uri)
-                 (values nil nil schema-uri))))
-
-          (null
-           ;; no relative part
-           (values (gethash schema-uri (context-references *context*))
-                   new-context-p
-                   schema-uri)))))))
+                 (values nil nil schema-uri)))))))))
 
 
 (defun resolve (ref)
