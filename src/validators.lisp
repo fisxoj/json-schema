@@ -271,6 +271,26 @@
              "Description must be a string."))
 
 
+(defvfun dependent-required dependencies
+  (require-type "object")
+
+  (let ((failed-dependencies (remove-if #'null
+                       (loop for key in (utils:object-keys dependencies)
+                             when (nth-value 1 (utils:object-get key data))
+                               unless (every (lambda (dependency-key)
+                                               (nth-value 1 (utils:object-get dependency-key data)))
+                                             (utils:object-get key dependencies))
+                               ;; when the key is found in the data
+                                 collecting (make-instance 'validation-failed-error
+                               :property-name "dependencies"
+                               :error-message (format nil "Field ~S depends on fields ~S, but some were missing."
+                                                      key
+                                                      (utils:object-get key dependencies)))))))
+
+    (sub-errors failed-dependencies
+                "There were failed dependencies.")))
+
+
 (defvfun dependencies dependencies
   (require-type "object")
 
@@ -576,6 +596,7 @@
   "anyOf" any-of
   "const" const
   "contains" contains
+  "dependentRequired" dependent-required
   "else" noop
   "enum" enum
   "exclusiveMaximum" exclusive-maximum
