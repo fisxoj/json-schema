@@ -21,6 +21,7 @@
                "quri"
                "sanity-clause"
                "st-json"
+               "str"
                "trivial-types")
   :homepage "https://fisxoj.github.io/json-schema/"
   :in-order-to ((test-op (test-op json-schema/test)))
