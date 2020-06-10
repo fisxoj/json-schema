@@ -271,6 +271,42 @@
              "Description must be a string."))
 
 
+(defvfun dependencies dependencies
+  (require-type "object")
+
+  (flet ((check-dependency (key dependency)
+           (etypecase dependency
+             (utils:json-array
+              (unless (every (lambda (dependency-key)
+                               (nth-value 1 (utils:object-get dependency-key data)))
+                             dependency)
+                (make-instance 'validation-failed-error
+                               :property-name "dependencies"
+                               :error-message (format nil "Field ~S depends on fields ~S, but some were missing."
+                                                      key
+                                                      (utils:object-get key dependencies)))))
+
+             ;; A subschema... 😭
+             ;; maybe an object, maybe true, false
+             (t
+              (when-let ((validation-errors (validate dependency data *schema-version*)))
+                (make-instance 'validation-failed-error
+                               :property-name "dependencies"
+                               :error-message (format nil "Field ~S depends on the schema ~/json-schema.utils:json-pretty-printer/ being valid, but it wasn't."
+                                                      key
+                                                      dependency)))))))
+
+    (let ((failed-dependencies
+            (remove-if #'null
+                       (loop for key in (utils:object-keys dependencies)
+                             when (nth-value 1 (utils:object-get key data))
+                               ;; when the key is found in the data
+                               collecting (check-dependency key (utils:object-get key dependencies))))))
+
+      (sub-errors failed-dependencies
+                  "There were failed dependencies."))))
+
+
 (defvfun enum members
   (condition (member data members :test #'utils:json-equal-p)
              "~a isn't one of ~{~a~^, ~}."
@@ -574,6 +610,7 @@
   "const" const
   "contains" contains
   "description" description
+  "dependencies" dependencies
   "else" noop
   "enum" enum
   "exclusiveMaximum" exclusive-maximum
