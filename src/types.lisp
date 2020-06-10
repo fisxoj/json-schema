@@ -39,7 +39,8 @@
 
 (defun integer-p (value)
   "JSON Schema considers anything without a fractional part an integer, ie. 1.0d0 is an integer. 🤷"
-  (= (floor value) value))
+  (and (numberp value)
+       (= (floor value) value)))
 
 
 (defmacro def-checker (name &rest types-plist)
