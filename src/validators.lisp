@@ -371,6 +371,9 @@
 
 
 (defvfun type-validator type
+  (condition (typep type '(or utils:json-array string))
+             "~S is an invalid type specifier."
+             type)
   (condition (validate-type nil type data)
              "Value ~a is not of type ~S."
              data type))
@@ -540,6 +543,8 @@
 
 
 (defvfun unique-items unique
+  (require-type "array")
+
   (when unique
     (condition (= (length data)
                   (length (remove-duplicates data :test 'utils:json-equal-p)))
