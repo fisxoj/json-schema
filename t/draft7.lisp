@@ -79,6 +79,8 @@
 ;; optional tests
 
 (test-cases-from-file "optional/format/email")
+(test-cases-from-file "optional/bignum")
+
 
 (test-cases-from-file "optional/format/date")
 
