@@ -52,6 +52,13 @@
        (<= (length (str:split #\: value)) 8)))
 
 
+(defun json-pointer-p (value)
+  (and (stringp value)
+       (not (ppcre:scan "~([^01]|$)" value))
+       (or (emptyp value)
+           (char= (char value 0) #\/))))
+
+
 (defun timep (value)
   (and (stringp value)
        ;; https://github.com/dlowe-net/local-time/issues/90
@@ -75,7 +82,6 @@
 
     (and (stringp value)
          (timelikep value))))
-
 
 
 (defun regexp (value)
@@ -102,6 +108,7 @@
   "idn-email" emailp
   "ipv4" ip-v4-address-p
   "ipv6" ip-v6-address-p
+  "json-pointer" json-pointer-p
   "regex" regexp)
 
 
@@ -113,6 +120,7 @@
   "idn-email" emailp
   "ipv4" ip-v4-address-p
   "ipv6" ip-v6-address-p
+  "json-pointer" json-pointer-p
   "regex" regexp
   "time" timep)
 
@@ -124,6 +132,7 @@
   "idn-email" emailp
   "ipv4" ip-v4-address-p
   "ipv6" ip-v6-address-p
+  "json-pointer" json-pointer-p
   "regex" regexp)
 
 
@@ -134,6 +143,7 @@
   "idn-email" emailp
   "ipv4" ip-v4-address-p
   "ipv6" ip-v6-address-p
+  "json-pointer" json-pointer-p
   "regex" regexp)
 
 
@@ -145,5 +155,6 @@
   "idn-email" emailp
   "ipv4" ip-v4-address-p
   "ipv6" ip-v6-address-p
+  "json-pointer" json-pointer-p
   "regex" regexp
   "time" draft3-timep)
