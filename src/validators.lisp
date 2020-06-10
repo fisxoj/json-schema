@@ -26,35 +26,41 @@
    (property-name :initarg :property-name :initform nil)
    (sub-errors :initarg :sub-errors :initform nil))
   (:report (lambda (c stream)
-             (format stream "Validation~@[ of property ~S~] failed with error:~2%~a~@[~2%Additionally:~%~{- ~a~%~}~]"
-                     (slot-value c 'property-name)
+             (format stream "~a~@[~2%Additionally:~%~{- ~a~%~}~]"
                      (slot-value c 'error-message)
                      (slot-value c 'sub-errors)))))
 
 
 (defmacro defvfun (name validation-field &body body)
-  `(defun ,name (schema ,validation-field data)
-     (macrolet ((require-type (type)
-                  `(unless (validate-type nil ,type data)
-                     (return-from ,',name t)))
+  (flet ((property-name (name)
+           ;; When properties shadow symbols in the CL package, they get named {property}-validator, so clean that off for prettier names
+           (let ((string (string-downcase name)))
+             (if (str:ends-with-p "-validator" string)
+                 (subseq string 0 (- (length string) #.(length "-VALIDATOR")))
+                 string))))
 
-                (condition (form error-string &rest format-args)
-                  `(unless ,form
-                     (error 'validation-failed-error
-                            :property-name ,,(string-downcase name)
-                            :error-message (format nil ,error-string
-                                                   ,@format-args))))
+    `(defun ,name (schema ,validation-field data)
+       (macrolet ((require-type (type)
+                    `(unless (validate-type nil ,type data)
+                       (return-from ,',name t)))
 
-                (sub-errors (errors error-string &rest format-args)
-                  (once-only (errors)
-                    `(when ,errors
+                  (condition (form error-string &rest format-args)
+                    `(unless ,form
                        (error 'validation-failed-error
-                              :sub-errors ,errors
-                              :property-name ,,(string-downcase name)
+                              :property-name ,,(property-name name)
                               :error-message (format nil ,error-string
-                                                     ,@format-args))))))
+                                                     ,@format-args))))
 
-       ,@body)))
+                  (sub-errors (errors error-string &rest format-args)
+                    (once-only (errors)
+                      `(when ,errors
+                         (error 'validation-failed-error
+                                :sub-errors ,errors
+                                :property-name ,,(property-name name)
+                                :error-message (format nil ,error-string
+                                                       ,@format-args))))))
+
+         ,@body))))
 
 
 (defun validate-type (schema type data)
@@ -70,7 +76,7 @@
   ((field-name :initarg :field-name)))
 
 
-(defun validate (schema data &optional (schema-version *schema-version*))
+(defun validate (schema data &optional (schema-version *schema-version*) ignore-id)
   (check-type schema-version schema-version)
 
   (let ((*schema-version* schema-version))
@@ -89,24 +95,22 @@
           nil)
 
          ((typep schema 'json-schema.utils:object)
-          (let* ((resolved-schema (reference:ensure-resolved schema)))
+          (loop for property in (utils:object-keys schema)
+                for value = (utils:object-get property schema)
+                appending (handler-case (progn
+                                          (draft2019-09 schema
+                                                        property
+                                                        value
+                                                        data)
+                                          nil)
 
-            (loop for property in (utils:object-keys resolved-schema)
-                  for value = (utils:object-get property resolved-schema)
-                  appending (handler-case (progn
-                                            (draft2019-09 resolved-schema
-                                                          property
-                                                          value
-                                                          data)
-                                            nil)
+                            (no-validator-condition (c)
+                              (warn "No validator for field ~S - skipping."
+                                    (slot-value c 'field-name))
+                              nil)
 
-                              (no-validator-condition (c)
-                                (warn "No validator for field ~a - skipping."
-                                      (slot-value c 'field-name))
-                                nil)
-
-                              (validation-failed-error (error)
-                                (list error))))))))
+                            (validation-failed-error (error)
+                              (list error)))))))
 
       (:draft7
        (cond
@@ -121,34 +125,43 @@
          ((utils:empty-object-p schema)
           nil)
 
+         ((and (utils:object-get "$id" schema) (not ignore-id))
+          (reference:with-pushed-id ((utils:object-get "$id" schema))
+            (validate schema data schema-version t)))
+
          ((typep schema 'json-schema.utils:object)
-          (let* ((resolved-schema (reference:ensure-resolved schema)))
+          (loop for property in (utils:object-keys schema)
+                for value = (utils:object-get property schema)
+                appending (handler-case (progn
+                                          (draft7 schema
+                                                  property
+                                                  value
+                                                  data)
+                                          nil)
 
-            (loop for property in (utils:object-keys resolved-schema)
-                  for value = (utils:object-get property resolved-schema)
-                  appending (handler-case (progn
-                                            (draft7 resolved-schema
-                                                    property
-                                                    value
-                                                    data)
-                                            nil)
+                            (no-validator-condition (c)
+                              (warn "No validator for field ~S - skipping."
+                                    (slot-value c 'field-name))
+                              nil)
 
-                              (no-validator-condition (c)
-                                (warn "No validator for field ~a - skipping."
-                                      (slot-value c 'field-name))
-                                nil)
-
-                              (validation-failed-error (error)
-                                (list error)))))))))))
+                            (validation-failed-error (error)
+                              (list error))))))))))
 
 
 ;;; Validation functions for individaul properties
 
 
-
 (defun noop (schema property data)
-  "This exists to say we have taken care of a property, but we should do nothing with it.  Likely because this property is actually handled by other things.  ``$ref`` is handled by :function:`validate`, ``else`` and ``then`` are handled by :function:`if-validator`, &c."
+  "This exists to say we have taken care of a property, but we should do nothing with it.  Likely because this property is actually handled by other things.  ``else`` and ``then`` are handled by :function:`if-validator`, &c."
+
   (declare (ignore schema property data)))
+
+
+(defvfun $ref reference
+  (reference:with-resolved-ref (schema resolved-schema)
+    (sub-errors (validate resolved-schema data)
+                "Error validating referred schema at ~S."
+                reference)))
 
 
 (defvfun additional-items additional-items
@@ -193,7 +206,7 @@
                                                       :test #'string=))))
 
          (condition (null additional-properties)
-                    "~a contains more properties (~a) than specified in the schema ~a"
+                    "~S contains more properties (~S) than specified in the schema ~S"
                     data-properties additional-properties schema-properties)))
 
       ((typep value 'utils:object)
@@ -217,8 +230,9 @@
   (loop for sub-schema in sub-schemas
         appending (validate sub-schema data) into errors
         finally (sub-errors errors
-                   "~a didn't satisfy all schemas in ~{~a~^, ~}"
-                   data sub-schemas)))
+                   "~a didn't satisfy all schemas in ~{~/json-schema.utils:json-pretty-printer/~^, ~}"
+                   data
+                   sub-schemas)))
 
 
 (defvfun any-of sub-schemas
@@ -250,6 +264,47 @@
   (condition (some (lambda (data) (not (validate contains data))) data)
              "~a does not contain ~a."
              data contains))
+
+
+(defvfun description description
+  (condition (stringp description)
+             "Description must be a string."))
+
+
+(defvfun dependencies dependencies
+  (require-type "object")
+
+  (flet ((check-dependency (key dependency)
+           (etypecase dependency
+             (utils:json-array
+              (unless (every (lambda (dependency-key)
+                               (nth-value 1 (utils:object-get dependency-key data)))
+                             dependency)
+                (make-instance 'validation-failed-error
+                               :property-name "dependencies"
+                               :error-message (format nil "Field ~S depends on fields ~S, but some were missing."
+                                                      key
+                                                      (utils:object-get key dependencies)))))
+
+             ;; A subschema... 😭
+             ;; maybe an object, maybe true, false
+             (t
+              (when-let ((validation-errors (validate dependency data *schema-version*)))
+                (make-instance 'validation-failed-error
+                               :property-name "dependencies"
+                               :error-message (format nil "Field ~S depends on the schema ~/json-schema.utils:json-pretty-printer/ being valid, but it wasn't."
+                                                      key
+                                                      dependency)))))))
+
+    (let ((failed-dependencies
+            (remove-if #'null
+                       (loop for key in (utils:object-keys dependencies)
+                             when (nth-value 1 (utils:object-get key data))
+                               ;; when the key is found in the data
+                               collecting (check-dependency key (utils:object-get key dependencies))))))
+
+      (sub-errors failed-dependencies
+                  "There were failed dependencies."))))
 
 
 (defvfun enum members
@@ -311,11 +366,14 @@
       ;; There is one schema for every item in the array
       (sub-errors (loop for item in data
                         appending (validate items item))
-                  "Errors occurred validating items against ~a."
+                  "Errors occurred validating items against ~/json-schema.utils:json-pretty-printer/."
                   items)))
 
 
 (defvfun type-validator type
+  (condition (typep type '(or utils:json-array string))
+             "~S is an invalid type specifier."
+             type)
   (condition (validate-type nil type data)
              "Value ~a is not of type ~S."
              data type))
@@ -341,8 +399,9 @@
   (require-type "array")
 
   (condition (>= length (length data))
-             "Array ~a must be at most ~d items long."
-             data length))
+             "Array ~/json-schema.utils:json-pretty-printer/ must be at most ~d items long."
+             data
+             length))
 
 
 (defvfun minimum minimum
@@ -404,7 +463,7 @@
 
 (defvfun not-validator sub-schema
   (condition (not (null (validate sub-schema data)))
-             "~a should not be valid under ~a."
+             "~a should not be valid under ~/json-schema.utils:json-pretty-printer/."
              data sub-schema))
 
 
@@ -484,7 +543,9 @@
 
 
 (defvfun unique-items unique
-  (when unique
+  (require-type "array")
+
+  (when (eq unique :true)
     (condition (= (length data)
                   (length (remove-duplicates data :test 'utils:json-equal-p)))
                "Not all items in ~{~a~^, ~} are unique."
@@ -508,7 +569,7 @@
 
 (def-validator draft2019-09
   "$defs" noop
-  "$ref" noop
+  "$ref" $ref
   "additionalItems" additional-items
   "additionalProperties" additional-properties
   "allOf" all-of
@@ -544,13 +605,17 @@
 
 (def-validator draft7
   "$defs" noop
-  "$ref" noop
+  "$id" noop
+  "$ref" $ref
+  "$schema" noop
   "additionalItems" additional-items
   "additionalProperties" additional-properties
   "allOf" all-of
   "anyOf" any-of
   "const" const
   "contains" contains
+  "description" description
+  "dependencies" dependencies
   "else" noop
   "enum" enum
   "exclusiveMaximum" exclusive-maximum

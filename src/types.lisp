@@ -37,6 +37,12 @@
   (eq value :null))
 
 
+(defun integer-p (value)
+  "JSON Schema considers anything without a fractional part an integer, ie. 1.0d0 is an integer. 🤷"
+  (and (numberp value)
+       (= (floor value) value)))
+
+
 (defmacro def-checker (name &rest types-plist)
   `(defun ,name (value type)
      (alexandria:eswitch (type :test #'string-equal)
@@ -48,7 +54,7 @@
   "any" any-p
   "array" arrayp
   "boolean" boolean-p
-  "integer" integerp
+  "integer" integer-p
   "object" object-p
   "null" null-p
   "number" realp
@@ -58,7 +64,7 @@
 (def-checker draft4
   "array" array-p
   "boolean" boolean-p
-  "integer" integerp
+  "integer" integer-p
   "object" object-p
   "null" null-p
   "number" realp
@@ -68,7 +74,7 @@
 (def-checker draft6
   "array" array-p
   "boolean" boolean-p
-  "integer" integerp
+  "integer" integer-p
   "object" object-p
   "null" null-p
   "number" realp
@@ -78,7 +84,7 @@
 (def-checker draft7
   "array" array-p
   "boolean" boolean-p
-  "integer" integerp
+  "integer" integer-p
   "object" object-p
   "null" null-p
   "number" realp
@@ -88,7 +94,7 @@
 (def-checker draft2019-09
   "array" array-p
   "boolean" boolean-p
-  "integer" integerp
+  "integer" integer-p
   "object" object-p
   "null" null-p
   "number" realp

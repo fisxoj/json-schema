@@ -37,7 +37,8 @@
   (and (stringp value)
        (ppcre:scan +hostname-regex+ value)
        (every (lambda (component) (< (length component) 64))
-              (str:split #\. value))))
+              (str:split #\. value))
+       (not (str:ends-with-p "-" value))))
 
 
 (defun ip-v4-address-p (value)
@@ -50,6 +51,13 @@
        (quri:ipv6-addr-p value)
        ;; https://github.com/fukamachi/quri/pull/34/files
        (<= (length (str:split #\: value)) 8)))
+
+
+(defun json-pointer-p (value)
+  (and (stringp value)
+       (not (ppcre:scan "~([^01]|$)" value))
+       (or (emptyp value)
+           (char= (char value 0) #\/))))
 
 
 (defun timep (value)
@@ -77,7 +85,6 @@
          (timelikep value))))
 
 
-
 (defun regexp (value)
   (handler-case (ppcre:parse-string value)
     (ppcre:ppcre-syntax-error (e)
@@ -102,6 +109,7 @@
   "idn-email" emailp
   "ipv4" ip-v4-address-p
   "ipv6" ip-v6-address-p
+  "json-pointer" json-pointer-p
   "regex" regexp)
 
 
@@ -113,6 +121,7 @@
   "idn-email" emailp
   "ipv4" ip-v4-address-p
   "ipv6" ip-v6-address-p
+  "json-pointer" json-pointer-p
   "regex" regexp
   "time" timep)
 
@@ -124,6 +133,7 @@
   "idn-email" emailp
   "ipv4" ip-v4-address-p
   "ipv6" ip-v6-address-p
+  "json-pointer" json-pointer-p
   "regex" regexp)
 
 
@@ -134,6 +144,7 @@
   "idn-email" emailp
   "ipv4" ip-v4-address-p
   "ipv6" ip-v6-address-p
+  "json-pointer" json-pointer-p
   "regex" regexp)
 
 
@@ -145,5 +156,6 @@
   "idn-email" emailp
   "ipv4" ip-v4-address-p
   "ipv6" ip-v6-address-p
+  "json-pointer" json-pointer-p
   "regex" regexp
   "time" draft3-timep)
