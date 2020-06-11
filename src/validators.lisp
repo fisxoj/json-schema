@@ -67,9 +67,17 @@
   "This is a tool for checking type validation, but isn't a validator itself.  It's used by many of the validator functions to decide wether they can have an opinion on the data being validated, but is also used by :function:`type-validator`."
   (declare (ignore schema))
 
-  (if (listp type)
-      (some (lambda (type) (types:draft2019-09 data type)) type)
-      (types:draft2019-09 data type)))
+  (flet ((type-check (type)
+           (ecase *schema-version*
+             (:draft2019-09 (types:draft2019-09 data type))
+             (:draft7       (types:draft7       data type))
+             (:draft6       (types:draft6       data type))
+             (:draft4       (types:draft4       data type))
+             (:draft3       (types:draft3       data type)))))
+
+    (if (listp type)
+        (some #'type-check type)
+        (type-check type))))
 
 
 (define-condition no-validator-condition ()
