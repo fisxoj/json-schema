@@ -4,8 +4,7 @@
                     (:utils :json-schema.utils)
                     (:reference :json-schema.reference))
   (:use :cl :alexandria)
-  (:export #:draft2019-09
-           #:validate
+  (:export #:validate
            #:validation-failed-error))
 
 (in-package :json-schema.validators)
@@ -202,6 +201,10 @@
                      when (nth-value 1 (utils:object-get key data))
                        ;; when the key is found in the data
                        collecting (check-dependency key (utils:object-get key dependencies))))))
+
+
+(defun collect-properties (schema data)
+  )
 
 
 ;;; Validation functions for individaul properties
@@ -540,8 +543,8 @@
                                (validation-failed-error (error)
                                  error)))))
 
-    (let* ((errors (loop for data-property in (utils:object-keys data)
-                         appending (test-key data-property))))
+    (let ((errors (loop for data-property in (utils:object-keys data)
+                        appending (test-key data-property))))
 
       (sub-errors errors
                   "got errors validating properties"))))
@@ -587,6 +590,32 @@
     (condition (null missing-keys)
                "Object is missing the required keys: ~{~a~^, ~}"
                required-fields)))
+
+
+(defvfun unevaluated-properties unevaluated-properties
+  (require-type "object")
+
+  (let ((unevaluated-property-names
+          (set-difference (utils:object-keys data)
+                          (utils:object-keys (utils:object-get "properties" schema (utils:make-empty-object)))
+                          :test 'equal)))
+
+    (cond
+      ((eq unevaluated-properties :false)
+       (condition (null unevaluated-property-names)
+                  "No unevaluated properties allowed, but found ~S."
+                  unevaluated-property-names))
+
+      ((typep unevaluated-properties 'utils:object)
+       (let ((errors (loop for property in unevaluated-property-names
+                           for (property-data found-p) = (multiple-value-list (utils:object-get property data))
+
+                           when found-p
+                             appending (validate unevaluated-properties
+                                                 property-data))))
+
+         (sub-errors errors
+                     "Unevaluated property error."))))))
 
 
 (defvfun unique-items unique
@@ -649,6 +678,7 @@
   "required" required
   "then" noop
   "type" type-validator
+  "unevaluatedProperties" unevaluated-properties
   "uniqueItems" unique-items)
 
 
