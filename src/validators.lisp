@@ -17,7 +17,7 @@
            :draft3))
 
 
-(defparameter *schema-version* :draft2019-09)
+(defparameter *schema-version* :draft7)
 
 
 (define-condition validation-failed-error (error)
