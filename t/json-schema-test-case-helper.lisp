@@ -68,9 +68,9 @@
                                     string-downcase))
          (pathname-directory (list :relative "JSON-Schema-Test-Suite" "tests" version-from-package))
          (test-spec-pathname (asdf:system-relative-pathname :json-schema
-                                                            (make-pathname :directory pathname-directory
-                                                                           :name name
-                                                                           :type "json"))))
+                                                            (merge-pathnames (pathname name)
+                                                                             (make-pathname :directory pathname-directory
+                                                                                            :type "json")))))
 
     `(deftest ,(intern (format nil "TEST-~:@(~a~)" name) *package*)
        (let ((json-schema:*schema-version* ,(make-keyword (string-upcase version-from-package))))
