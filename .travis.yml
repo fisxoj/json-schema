@@ -10,9 +10,6 @@ addons:
       - libc6-i386
       - openjdk-8-jre
 
-services:
-  - docker
-
 env:
   global:
     - PATH=$HOME/.roswell/bin:$PATH
@@ -31,17 +28,16 @@ test-job: &test
     # Install Roswell
     - curl -L https://raw.githubusercontent.com/snmsts/roswell/release/scripts/install-for-ci.sh | sh
     - ros install fukamachi/rove
-    - docker build -t jsonschema-remote -f Dockerfile.test-suite .
-    - docker ps -a
+    - pip install Flask
   before_script:
     - echo "JSON-Schema-Test-Suite"
     - git submodule status JSON-Schema-Test-Suite/
     - ros --version
     - ros config
     - ros -s json-schema -e '(print "precompiled json-schema")'
+    - cd JSON-Schema-Test-Suite/bin && ./jsonschema_suite serve &
   script:
-    - docker run -p 1234:1234 -d jsonschema-remote
-    - ros dynamic-space-size=4096 exec rove json-schema.asd
+    - ros dynamic-space-size=4096 -s rove -e '(or (rove:run :json-schema) (uiop:quit -1))'
 
 jobs:
   fast_finish: true
