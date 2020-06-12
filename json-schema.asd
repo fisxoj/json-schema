@@ -46,8 +46,7 @@
 	       "rove")
   :pathname "t"
   :components ((:file "utils")
-               (:file "reference")
-               (:file "validators"))
+               (:file "reference"))
   :perform (test-op (op c)
                     (declare (ignore op))
 		    (uiop:symbol-call :rove :run c)))
