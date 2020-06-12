@@ -37,7 +37,7 @@ test-job: &test
     - ros -s json-schema -e '(print "precompiled json-schema")'
     - cd JSON-Schema-Test-Suite/bin && ./jsonschema_suite serve &
   script:
-    - ros dynamic-space-size=4096 -s rove -e '(or (rove:run :json-schema) (uiop:quit -1))'
+    - ros dynamic-space-size=4096 exec rove json-schema.asd
 
 jobs:
   fast_finish: true
