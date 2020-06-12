@@ -1,0 +1,11 @@
+FROM python:3-slim
+
+WORKDIR /usr/src/app
+
+RUN pip install Flask
+
+COPY JSON-Schema-Test-Suite/bin/jsonschema_suite .
+
+EXPOSE 1234
+
+CMD ./jsonschema_suite serve

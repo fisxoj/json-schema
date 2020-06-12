@@ -27,15 +27,22 @@ cache:
 # This gets the environment overridden to set the lisp implementation to test
 test-job: &test
   stage: test
+  before_install:
+    - docker build -t jsonschema-remote -f Dockerfile.test-suite .
+    - docker run -p 127.0.0.1:1234:1234 -d jsonschema-remote
+    - docker ps -a
   install:
     # Install Roswell
     - curl -L https://raw.githubusercontent.com/snmsts/roswell/release/scripts/install-for-ci.sh | sh
     - ros install fukamachi/rove
   before_script:
+    - echo "JSON-Schema-Test-Suite"
+    - git submodule status JSON-Schema-Test-Suite/
     - ros --version
     - ros config
+    - ros -s json-schema -e '(print "precompiled json-schema")'
   script:
-    - rove json-schema.asd
+    - ros dynamic-space-size=4096 exec rove json-schema.asd
 
 jobs:
   fast_finish: true
@@ -50,15 +57,15 @@ jobs:
     - <<: *test
       env:
         - LISP=ccl-bin
-    - <<: *test
-      env:
-        - LISP=ecl
-    - <<: *test
-      env:
-        - LISP=allegro
-    - <<: *test
-      env:
-        - LISP=abcl
+    # - <<: *test
+    #   env:
+    #     - LISP=ecl
+    # - <<: *test
+    #   env:
+    #     - LISP=allegro
+    # - <<: *test
+    #   env:
+    #     - LISP=abcl
     - name: update docs
       stage: deploy
       before_script:
