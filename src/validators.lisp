@@ -39,9 +39,10 @@
                  string))))
 
     `(defun ,name (schema ,validation-field data)
+       (declare (optimize space speed))
        (macrolet ((require-type (type)
                     `(unless (validate-type nil ,type data)
-                       (return-from ,',name t)))
+                       (return-from ,',name)))
 
                   (condition (form error-string &rest format-args)
                     `(unless ,form
@@ -84,6 +85,7 @@
 
 
 (defun validate (schema data &optional (schema-version *schema-version*) ignore-id)
+  (declare (optimize space speed))
   (check-type schema-version schema-version)
 
   (let ((*schema-version* schema-version))
@@ -188,7 +190,7 @@
                                                       key
                                                       dependency))))
              ;; maybe true, false, null
-             (t
+             ((or utils:json-boolean utils:json-null)
               (when-let ((validation-errors (validate dependency data *schema-version*)))
                 (make-instance 'validation-failed-error
                                :property-name property-name
@@ -534,9 +536,9 @@
   (require-type "object")
 
   (flet ((test-key (key)
-           (loop for pattern-property in (utils:object-keys patterns)
+           (loop with property-data = (utils:object-get key data)
+                 for pattern-property in (utils:object-keys patterns)
                  for property-schema = (utils:object-get pattern-property patterns)
-                 for property-data = (utils:object-get key data)
 
                  when (ppcre:scan pattern-property key)
                    appending (handler-case (validate property-schema property-data)
