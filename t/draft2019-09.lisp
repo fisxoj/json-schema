@@ -9,8 +9,7 @@
 
 (test-cases-from-file "allOf")
 
-;; causes a control stack problem for now
-;; (test-cases-from-file "anchor")
+(test-cases-from-file "anchor")
 
 (test-cases-from-file "anyOf")
 

@@ -644,6 +644,7 @@
 
 
 (def-validator draft2019-09
+  "$anchor" noop
   "$defs" noop
   "$ref" $ref
   "additionalItems" additional-items
