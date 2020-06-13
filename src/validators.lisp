@@ -4,8 +4,7 @@
                     (:utils :json-schema.utils)
                     (:reference :json-schema.reference))
   (:use :cl :alexandria)
-  (:export #:draft2019-09
-           #:validate
+  (:export #:validate
            #:validation-failed-error))
 
 (in-package :json-schema.validators)
@@ -18,7 +17,7 @@
            :draft3))
 
 
-(defparameter *schema-version* :draft2019-09)
+(defparameter *schema-version* :draft7)
 
 
 (define-condition validation-failed-error (error)
@@ -40,9 +39,10 @@
                  string))))
 
     `(defun ,name (schema ,validation-field data)
+       (declare (optimize space speed))
        (macrolet ((require-type (type)
                     `(unless (validate-type nil ,type data)
-                       (return-from ,',name t)))
+                       (return-from ,',name)))
 
                   (condition (form error-string &rest format-args)
                     `(unless ,form
@@ -67,9 +67,17 @@
   "This is a tool for checking type validation, but isn't a validator itself.  It's used by many of the validator functions to decide wether they can have an opinion on the data being validated, but is also used by :function:`type-validator`."
   (declare (ignore schema))
 
-  (if (listp type)
-      (some (lambda (type) (types:draft2019-09 data type)) type)
-      (types:draft2019-09 data type)))
+  (flet ((type-check (type)
+           (ecase *schema-version*
+             (:draft2019-09 (types:draft2019-09 data type))
+             (:draft7       (types:draft7       data type))
+             (:draft6       (types:draft6       data type))
+             (:draft4       (types:draft4       data type))
+             (:draft3       (types:draft3       data type)))))
+
+    (if (listp type)
+        (some #'type-check type)
+        (type-check type))))
 
 
 (define-condition no-validator-condition ()
@@ -77,75 +85,113 @@
 
 
 (defun validate (schema data &optional (schema-version *schema-version*) ignore-id)
+  (declare (optimize space speed))
   (check-type schema-version schema-version)
 
   (let ((*schema-version* schema-version))
-    (ecase schema-version
-      (:draft2019-09
-       (cond
-         ((typep schema 'utils:json-boolean)
-          (if (eq schema :true)
-              nil
-              (list
-               (make-instance 'validation-failed-error
-                              :property-name ""
-                              :error-message "Schema :false is always false."))))
+    (cond
+      ((typep schema 'utils:json-boolean)
+       (if (eq schema :true)
+           nil
+           (list
+            (make-instance 'validation-failed-error
+                           :property-name ""
+                           :error-message "Schema :false is always false."))))
 
-         ((utils:empty-object-p schema)
-          nil)
+      ((utils:empty-object-p schema)
+       nil)
 
-         ((typep schema 'json-schema.utils:object)
-          (loop for property in (utils:object-keys schema)
-                for value = (utils:object-get property schema)
-                appending (handler-case (progn
+      ((and (typep schema 'utils:object)
+            (nth-value 1 (funcall (symbol-function (reference:get-id-fun-for-draft schema-version))
+                                  schema))
+            (not ignore-id))
+
+       (reference:with-pushed-id ((funcall (symbol-function (reference:get-id-fun-for-draft schema-version))
+                                           schema))
+         (validate schema data schema-version t)))
+
+      ((typep schema 'utils:object)
+       (loop for property in (utils:object-keys schema)
+             for value = (utils:object-get property schema)
+             appending (handler-case (progn
+                                       (ecase schema-version
+                                         (:draft2019-09
                                           (draft2019-09 schema
                                                         property
                                                         value
-                                                        data)
-                                          nil)
-
-                            (no-validator-condition (c)
-                              (warn "No validator for field ~S - skipping."
-                                    (slot-value c 'field-name))
-                              nil)
-
-                            (validation-failed-error (error)
-                              (list error)))))))
-
-      (:draft7
-       (cond
-         ((typep schema 'utils:json-boolean)
-          (if (eq schema :true)
-              nil
-              (list
-               (make-instance 'validation-failed-error
-                              :property-name ""
-                              :error-message "Schema :false is always false."))))
-
-         ((utils:empty-object-p schema)
-          nil)
-
-         ((and (utils:object-get "$id" schema) (not ignore-id))
-          (reference:with-pushed-id ((utils:object-get "$id" schema))
-            (validate schema data schema-version t)))
-
-         ((typep schema 'json-schema.utils:object)
-          (loop for property in (utils:object-keys schema)
-                for value = (utils:object-get property schema)
-                appending (handler-case (progn
+                                                        data))
+                                         (:draft7
                                           (draft7 schema
                                                   property
                                                   value
-                                                  data)
-                                          nil)
+                                                  data))
+                                         (:draft6
+                                          (draft6 schema
+                                                  property
+                                                  value
+                                                  data))
+                                         (:draft4
+                                          (draft4 schema
+                                                  property
+                                                  value
+                                                  data)))
+                                       nil)
 
-                            (no-validator-condition (c)
-                              (warn "No validator for field ~S - skipping."
-                                    (slot-value c 'field-name))
-                              nil)
+                         (no-validator-condition (c)
+                           (warn "No validator for field ~S - skipping."
+                                 (slot-value c 'field-name))
+                           nil)
 
-                            (validation-failed-error (error)
-                              (list error))))))))))
+                         (validation-failed-error (error)
+                           (list error))))))))
+
+;;; Helpers for validators
+
+(defun check-dependencies (property-name dependencies data &key (allow-arrays t) (allow-objects t))
+  (flet ((check-dependency (key dependency)
+           (etypecase dependency
+             (utils:json-array
+              (unless allow-arrays
+                (make-instance 'validation-failed-error
+                               :property property-name
+                               :error-message (format nil "~d is not a valid dependency."
+                                              dependency)))
+              (unless (every (lambda (dependency-key)
+                               (nth-value 1 (utils:object-get dependency-key data)))
+                             dependency)
+                (make-instance 'validation-failed-error
+                               :property-name "dependencies"
+                               :error-message (format nil "Field ~S depends on fields ~S, but some were missing."
+                                                      key
+                                                      (utils:object-get key dependencies)))))
+
+             ;; A subschema... 😭
+             (utils:object
+              (unless allow-objects
+                (make-instance 'validation-failed-error
+                               :property property-name
+                               :error-message (format nil "~d is not a valid dependency."
+                                              dependency)))
+              (when-let ((validation-errors (validate dependency data *schema-version*)))
+                (make-instance 'validation-failed-error
+                               :property-name property-name
+                               :error-message (format nil "Field ~S depends on the schema ~/json-schema.utils:json-pretty-printer/ being valid, but it wasn't."
+                                                      key
+                                                      dependency))))
+             ;; maybe true, false, null
+             ((or utils:json-boolean utils:json-null)
+              (when-let ((validation-errors (validate dependency data *schema-version*)))
+                (make-instance 'validation-failed-error
+                               :property-name property-name
+                               :error-message (format nil "Field ~S depends on the schema ~/json-schema.utils:json-pretty-printer/ being valid, but it wasn't."
+                                                      key
+                                                      dependency)))))))
+
+    (remove-if #'null
+               (loop for key in (utils:object-keys dependencies)
+                     when (nth-value 1 (utils:object-get key data))
+                       ;; when the key is found in the data
+                       collecting (check-dependency key (utils:object-get key dependencies))))))
 
 
 ;;; Validation functions for individaul properties
@@ -271,41 +317,32 @@
              "Description must be a string."))
 
 
+
 (defvfun dependencies dependencies
   (require-type "object")
 
-  (flet ((check-dependency (key dependency)
-           (etypecase dependency
-             (utils:json-array
-              (unless (every (lambda (dependency-key)
-                               (nth-value 1 (utils:object-get dependency-key data)))
-                             dependency)
-                (make-instance 'validation-failed-error
-                               :property-name "dependencies"
-                               :error-message (format nil "Field ~S depends on fields ~S, but some were missing."
-                                                      key
-                                                      (utils:object-get key dependencies)))))
+  (let ((failed-dependencies (check-dependencies "dependencies" dependencies data)))
 
-             ;; A subschema... 😭
-             ;; maybe an object, maybe true, false
-             (t
-              (when-let ((validation-errors (validate dependency data *schema-version*)))
-                (make-instance 'validation-failed-error
-                               :property-name "dependencies"
-                               :error-message (format nil "Field ~S depends on the schema ~/json-schema.utils:json-pretty-printer/ being valid, but it wasn't."
-                                                      key
-                                                      dependency)))))))
+    (sub-errors failed-dependencies
+                "There were failed dependencies.")))
 
-    (let ((failed-dependencies
-            (remove-if #'null
-                       (loop for key in (utils:object-keys dependencies)
-                             when (nth-value 1 (utils:object-get key data))
-                               ;; when the key is found in the data
-                               collecting (check-dependency key (utils:object-get key dependencies))))))
 
-      (sub-errors failed-dependencies
-                  "There were failed dependencies."))))
+(defvfun dependent-required dependencies
+  (require-type "object")
 
+  (let ((failed-dependencies (check-dependencies "dependentRequired" dependencies data :allow-objects nil)))
+
+    (sub-errors failed-dependencies
+                "There were failed dependencies.")))
+
+
+(defvfun dependent-schemas schemas
+  (require-type "object")
+
+  (let ((failed-dependencies (check-dependencies "dependentSchemas" schemas data :allow-arrays nil)))
+
+    (sub-errors failed-dependencies
+                "There were failed dependencies.")))
 
 (defvfun enum members
   (condition (member data members :test #'utils:json-equal-p)
@@ -387,6 +424,19 @@
              data maximum))
 
 
+(defvfun maximum-draft4 maximum
+  (require-type "number")
+
+  (let ((exclusive-p (eq :true (utils:object-get "exclusiveMaximum" schema :false))))
+    (if exclusive-p
+        (condition (< data maximum)
+                   "~d must be strictly less than ~d."
+                   data maximum)
+        (condition (<= data maximum)
+                   "~d must be less than or equal to ~d."
+                   data maximum))))
+
+
 (defvfun max-length length
   (require-type "string")
 
@@ -408,8 +458,21 @@
   (require-type "number")
 
   (condition (>= data minimum)
-             "~d must be greater than or equal to ~d"
+             "~d must be greater than or equal to ~d."
              data minimum))
+
+
+(defvfun minimum-draft4 minimum
+  (require-type "number")
+
+  (let ((exclusive-p (eq :true (utils:object-get "exclusiveMaximum" schema :false))))
+    (if exclusive-p
+        (condition (> data minimum)
+                   "~d must be strictly greater than ~d."
+                   data minimum)
+        (condition (>= data minimum)
+                   "~d must be greater than or equal to ~d."
+                   data minimum))))
 
 
 (defvfun min-items length
@@ -484,17 +547,17 @@
   (require-type "object")
 
   (flet ((test-key (key)
-           (loop for pattern-property in (utils:object-keys patterns)
+           (loop with property-data = (utils:object-get key data)
+                 for pattern-property in (utils:object-keys patterns)
                  for property-schema = (utils:object-get pattern-property patterns)
-                 for property-data = (utils:object-get key data)
 
                  when (ppcre:scan pattern-property key)
                    appending (handler-case (validate property-schema property-data)
                                (validation-failed-error (error)
                                  error)))))
 
-    (let* ((errors (loop for data-property in (utils:object-keys data)
-                         appending (test-key data-property))))
+    (let ((errors (loop for data-property in (utils:object-keys data)
+                        appending (test-key data-property))))
 
       (sub-errors errors
                   "got errors validating properties"))))
@@ -542,6 +605,32 @@
                required-fields)))
 
 
+(defvfun unevaluated-properties unevaluated-properties
+  (require-type "object")
+
+  (let ((unevaluated-property-names
+          (set-difference (utils:object-keys data)
+                          (utils:object-keys (utils:object-get "properties" schema (utils:make-empty-object)))
+                          :test 'equal)))
+
+    (cond
+      ((eq unevaluated-properties :false)
+       (condition (null unevaluated-property-names)
+                  "No unevaluated properties allowed, but found ~S."
+                  unevaluated-property-names))
+
+      ((typep unevaluated-properties 'utils:object)
+       (let ((errors (loop for property in unevaluated-property-names
+                           for (property-data found-p) = (multiple-value-list (utils:object-get property data))
+
+                           when found-p
+                             appending (validate unevaluated-properties
+                                                 property-data))))
+
+         (sub-errors errors
+                     "Unevaluated property error."))))))
+
+
 (defvfun unique-items unique
   (require-type "array")
 
@@ -568,6 +657,7 @@
 
 
 (def-validator draft2019-09
+  "$anchor" noop
   "$defs" noop
   "$ref" $ref
   "additionalItems" additional-items
@@ -576,6 +666,8 @@
   "anyOf" any-of
   "const" const
   "contains" contains
+  "dependentRequired" dependent-required
+  "dependentSchemas" dependent-schemas
   "else" noop
   "enum" enum
   "exclusiveMaximum" exclusive-maximum
@@ -600,6 +692,7 @@
   "required" required
   "then" noop
   "type" type-validator
+  "unevaluatedProperties" unevaluated-properties
   "uniqueItems" unique-items)
 
 
@@ -640,5 +733,77 @@
   "pattern" pattern
   "required" required
   "then" noop
+  "type" type-validator
+  "uniqueItems" unique-items)
+
+
+(def-validator draft6
+  "$id" noop
+  "$ref" $ref
+  "$schema" noop
+  "additionalItems" additional-items
+  "additionalProperties" additional-properties
+  "allOf" all-of
+  "anyOf" any-of
+  "const" const
+  "contains" contains
+  "default" noop
+  "dependencies" dependencies
+  "enum" enum
+  "exclusiveMaximum" exclusive-maximum
+  "exclusiveMinimum" exclusive-minimum
+  "format" format-validator
+  "items" items
+  "maximum" maximum
+  "maxItems" max-items
+  "maxLength" max-length
+  "maxProperties" max-properties
+  "minimum" minimum
+  "minItems" min-items
+  "minLength" min-length
+  "minProperties" min-properties
+  "multipleOf" multiple-of
+  "not" not-validator
+  "oneOf" one-of
+  "pattern" pattern
+  "patternProperties" pattern-properties
+  "properties" properties
+  "propertyNames" property-names
+  "required" required
+  "type" type-validator
+  "uniqueItems" unique-items)
+
+
+(def-validator draft4
+  "id" noop
+  "$ref" $ref
+  "$schema" noop
+  "additionalItems" additional-items
+  "additionalProperties" additional-properties
+  "allOf" all-of
+  "anyOf" any-of
+  "const" const
+  "contains" contains
+  "default" noop
+  "dependencies" dependencies
+  "enum" enum
+  "format" format-validator
+  "items" items
+  "maximum" maximum-draft4
+  "maxItems" max-items
+  "maxLength" max-length
+  "maxProperties" max-properties
+  "minimum" minimum-draft4
+  "minItems" min-items
+  "minLength" min-length
+  "minProperties" min-properties
+  "multipleOf" multiple-of
+  "not" not-validator
+  "oneOf" one-of
+  "pattern" pattern
+  "patternProperties" pattern-properties
+  "properties" properties
+  "propertyNames" property-names
+  "required" required
   "type" type-validator
   "uniqueItems" unique-items)

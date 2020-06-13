@@ -21,7 +21,8 @@
            #:fetching-not-allowed-error
            #:reference-error
            #:nested-reference-error
-           #:with-pushed-id))
+           #:with-pushed-id
+           #:get-id-fun-for-draft))
 
 (in-package :json-schema.reference)
 
@@ -105,12 +106,43 @@
       (values "" nil)))
 
 
-(defmacro with-context (() &body body)
-  `(let ((*context* (make-context)))
+(defun draft2019-09-id-fun (schema)
+  "An id extraction function that also pays attention to $anchor properties which provide only location-independent references."
+
+  (if (typep schema 'utils:object)
+      (multiple-value-bind (id id-found-p) (utils:object-get "$id" schema)
+        (multiple-value-bind (anchor anchor-found-p) (utils:object-get "$anchor" schema)
+          (values (quri:merge-uris (or (str:concat "#" anchor) "")
+                                   (or id ""))
+                  (or id-found-p anchor-found-p))))
+      (values "" nil)))
+
+
+(defun draft4-id-fun (schema)
+  (if (typep schema 'utils:object)
+      (utils:object-get "id" schema "")
+      (values "" nil)))
+
+
+(defun get-id-fun-for-draft (schema-version)
+  "Selects an id function that's appropriate for each schema draft."
+
+  (ecase schema-version
+    (:draft2019-09
+     'draft2019-09-id-fun)
+    ((or :draft7 :draft6)
+     'default-id-fun)
+    (:draft4
+     'draft4-id-fun)))
+
+
+(defmacro with-context ((&optional (id-fun ''default-id-fun)) &body body)
+  `(let ((*context* (make-context))
+         (*id-fun* ,id-fun))
      ,@body))
 
 
-(defun push-context (schema &optional (id-fun #'default-id-fun))
+(defun push-context (schema &optional (id-fun *id-fun*))
   ;; (format t "~&> pc: pushing schema id ~S.~%"
   ;;         (funcall id-fun schema))
 
@@ -324,7 +356,7 @@
     (dex:http-request-not-found (error)
       (declare (ignore error))
       (error 'remote-reference-error
-             :message (format nil "document not found ~S" (get-current-uri))
+             :message "document not found"
              :uri uri))))
 
 
@@ -411,7 +443,7 @@
   (lookup (make-reference (get-ref ref))))
 
 
-(defun collect-subschemas (schema &key (id-fun #'default-id-fun) current-uri properties-p)
+(defun collect-subschemas (schema &key (id-fun *id-fun*) current-uri properties-p)
   "Collect all named subschemas into an alist of (name . schema-object)."
 
   (when (typep schema 'utils:object)
@@ -441,7 +473,7 @@
             subschema-ids)))))
 
 
-(defun populate-named-references-for-schema (schema &key (id-fun #'default-id-fun) uri)
+(defun populate-named-references-for-schema (schema &key (id-fun *id-fun*) uri)
   "Takes an alist of (uri . schema) and populates the appropriate hash tables in the named references slot of the context.  Takes the output from collect subschemas, which may return named references for many uri's, since documents are allowed to insist they have whatever uri they want whenever they want."
 
   (loop for (uri . schema) in (collect-subschemas schema :id-fun id-fun :current-uri uri)

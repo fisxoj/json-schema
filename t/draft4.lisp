@@ -1,12 +1,11 @@
-(defpackage :json-schema/test/draft2019-09
+(defpackage :json-schema/test/draft4
   (:use :cl :json-schema-test-case-helper))
 
-(in-package :json-schema/test/draft2019-09)
+(in-package :json-schema/test/draft4)
 
 (defvar +skip-tests+ '(("multipleOf" . (("by number" . ("4.5 is multiple of 1.5"))))
-                       ("unevaluatedProperties" . t)
-                       ("unevaluatedItems" . t)))
-
+                       ("minimum" . (("exclusiveMinimum validation" . ("boundary point is invalid"))))
+                       ("ref" . (("ref overrides any sibling keywords" . ("ref valid, maxItems ignored"))))))
 
 (test-cases-from-file "additionalItems")
 
@@ -14,33 +13,17 @@
 
 (test-cases-from-file "allOf")
 
-(test-cases-from-file "anchor")
-
 (test-cases-from-file "anyOf")
-
-(test-cases-from-file "boolean_schema")
-
-(test-cases-from-file "const")
-
-(test-cases-from-file "contains")
 
 (test-cases-from-file "default")
 
-(test-cases-from-file "defs")
+(test-cases-from-file "definitions")
 
-(test-cases-from-file "dependentRequired")
-
-(test-cases-from-file "dependentSchemas")
+(test-cases-from-file "dependencies")
 
 (test-cases-from-file "enum")
 
-(test-cases-from-file "exclusiveMaximum")
-
-(test-cases-from-file "exclusiveMinimum")
-
 (test-cases-from-file "format")
-
-(test-cases-from-file "if-then-else")
 
 (test-cases-from-file "items")
 
@@ -72,8 +55,6 @@
 
 (test-cases-from-file "properties")
 
-(test-cases-from-file "propertyNames")
-
 (test-cases-from-file "ref")
 
 (test-cases-from-file "refRemote")
@@ -81,9 +62,5 @@
 (test-cases-from-file "required")
 
 (test-cases-from-file "type")
-
-(test-cases-from-file "unevaluatedItems")
-
-(test-cases-from-file "unevaluatedProperties")
 
 (test-cases-from-file "uniqueItems")

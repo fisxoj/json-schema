@@ -53,29 +53,29 @@
 
 
 (deftest test-context
-  (testing "an uncomplicated context"
-    (let ((simple-ref (json:read-json-from-string
-                       "{\"components\": {\"key\": 4, \"another\": {\"$ref\": \"#/components/key\"}}}")))
-      (put:with-context ()
-        (put:with-pushed-context (simple-ref))
-        (let ((resolved (put::resolve (st-json:getjso* "components.another" simple-ref))))
-          (ok (not (null resolved))
-              "can resolve a reference.")
+  ;; (testing "an uncomplicated context"
+  ;;   (let ((simple-ref (json:read-json-from-string
+  ;;                      "{\"components\": {\"key\": 4, \"another\": {\"$ref\": \"#/components/key\"}}}")))
+  ;;     (put:with-context ()
+  ;;       (put:with-pushed-context (simple-ref))
+  ;;       (let ((resolved (put::resolve (st-json:getjso* "components.another" simple-ref))))
+  ;;         (ok (not (null resolved))
+  ;;             "can resolve a reference.")
 
-          (ok (= resolved 4)
-              "can resolve a simple relative reference to the correct value.")))))
+  ;;         (ok (= resolved 4)
+  ;;             "can resolve a simple relative reference to the correct value.")))))
 
-  (testing "an with an encoded path component"
-    (let ((simple-ref (json:read-json-from-string
-                       "{\"components\": {\"~key\": 4, \"another\": {\"$ref\": \"#/components/~0key\"}}}")))
-      (put:with-context ()
-        (put:with-pushed-context (simple-ref))
-        (let ((resolved (put::resolve (st-json:getjso* "components.another" simple-ref))))
-          (ok (not (null resolved))
-              "can resolve a reference.")
+  ;; (testing "with an encoded path component"
+  ;;   (let ((simple-ref (json:read-json-from-string
+  ;;                      "{\"components\": {\"~key\": 4, \"another\": {\"$ref\": \"#/components/~0key\"}}}")))
+  ;;     (put:with-context ()
+  ;;       (put:with-pushed-context (simple-ref))
+  ;;       (let ((resolved (put::resolve (st-json:getjso* "components.another" simple-ref))))
+  ;;         (ok (not (null resolved))
+  ;;             "can resolve a reference.")
 
-          (ok (= resolved 4)
-              "can resolve a simple relative reference to the correct value.")))))
+  ;;         (ok (= resolved 4)
+  ;;             "can resolve a simple relative reference to the correct value.")))))
 
   (testing "encoded ref names"
     (let ((document (json:read-json-from-string "{\"$defs\": {
@@ -104,17 +104,3 @@
                                     (put:resolve (json:getjso* "properties.percent" document)))
                        "integer")
               "can fetch a ref with an encoded percent sign in it."))))))
-
-
-(deftest get-subspec-by-ref
-  (testing "get-subspec-by-ref"
-    (let ((document (json:read-json-from-string "{\"toplevel\":[1,2,3,4,5],\"another\":{\"something\": null,\"potato\":[{\"name\":\"yes\"},{\"name\":\"no\"}]}}")))
-
-      (ok (= (put:get-subspec-by-ref document "/toplevel/2") 3)
-          "correctly indexes into arrays.")
-
-      (ok (eq (put:get-subspec-by-ref document "/another/something") :null)
-          "correctly indexes into nested objects.")
-
-      (ok (eq (put:get-subspec-by-ref document nil) document)
-          "correctly finds the root element."))))
