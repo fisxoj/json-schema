@@ -194,32 +194,6 @@
                        collecting (check-dependency key (utils:object-get key dependencies))))))
 
 
-(defun collect-properties (schema data)
-  (let* ((pattern-properties
-           (when-let ((pattern-properties (utils:object-get "patternProperties" schema)))
-
-             (remove-if-not (lambda (key)
-                              (some (lambda (pattern) (ppcre:scan pattern key))
-                                    (utils:object-keys pattern-properties)))
-                            (utils:object-keys data))))
-
-         (properties
-           (when-let ((properties (utils:object-get "properties" schema)))
-             (utils:object-keys properties)))
-
-         (additional-properties
-           (additional-properties (set-difference data-properties
-                                                  (union schema-properties pattern-properties
-                                                         :test #'string=)
-                                                  :test #'string=)))
-         (unevaluated-properties ))
-
-    (values properties
-            additional-properties
-            pattern-properties
-            unevaluated-properties)))
-
-
 ;;; Validation functions for individaul properties
 
 
