@@ -708,3 +708,40 @@
   "then" noop
   "type" type-validator
   "uniqueItems" unique-items)
+
+
+(def-validator draft6
+  "$id" noop
+  "$ref" $ref
+  "$schema" noop
+  "additionalItems" additional-items
+  "additionalProperties" additional-properties
+  "allOf" all-of
+  "anyOf" any-of
+  "const" const
+  "contains" contains
+  "default" noop
+  "dependencies" dependencies
+  "enum" enum
+  "exclusiveMaximum" exclusive-maximum
+  "exclusiveMinimum" exclusive-minimum
+  "format" format-validator
+  "items" items
+  "maximum" maximum
+  "maxItems" max-items
+  "maxLength" max-length
+  "maxProperties" max-properties
+  "minimum" minimum
+  "minItems" min-items
+  "minLength" min-length
+  "minProperties" min-properties
+  "multipleOf" multiple-of
+  "not" not-validator
+  "oneOf" one-of
+  "pattern" pattern
+  "patternProperties" pattern-properties
+  "properties" properties
+  "propertyNames" property-names
+  "required" required
+  "type" type-validator
+  "uniqueItems" unique-items)
