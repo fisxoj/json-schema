@@ -89,72 +89,56 @@
   (check-type schema-version schema-version)
 
   (let ((*schema-version* schema-version))
-    (ecase schema-version
-      (:draft2019-09
-       (cond
-         ((typep schema 'utils:json-boolean)
-          (if (eq schema :true)
-              nil
-              (list
-               (make-instance 'validation-failed-error
-                              :property-name ""
-                              :error-message "Schema :false is always false."))))
+    (cond
+      ((typep schema 'utils:json-boolean)
+       (if (eq schema :true)
+           nil
+           (list
+            (make-instance 'validation-failed-error
+                           :property-name ""
+                           :error-message "Schema :false is always false."))))
 
-         ((utils:empty-object-p schema)
-          nil)
+      ((utils:empty-object-p schema)
+       nil)
 
-         ((typep schema 'json-schema.utils:object)
-          (loop for property in (utils:object-keys schema)
-                for value = (utils:object-get property schema)
-                appending (handler-case (progn
+      ((and (utils:object-get "$id" schema) (not ignore-id))
+       (reference:with-pushed-id ((utils:object-get "$id" schema))
+         (validate schema data schema-version t)))
+
+      ((typep schema 'json-schema.utils:object)
+       (loop for property in (utils:object-keys schema)
+             for value = (utils:object-get property schema)
+             appending (handler-case (progn
+                                       (ecase schema-version
+                                         (:draft2019-09
                                           (draft2019-09 schema
                                                         property
                                                         value
-                                                        data)
-                                          nil)
-
-                            (no-validator-condition (c)
-                              (warn "No validator for field ~S - skipping."
-                                    (slot-value c 'field-name))
-                              nil)
-
-                            (validation-failed-error (error)
-                              (list error)))))))
-
-      (:draft7
-       (cond
-         ((typep schema 'utils:json-boolean)
-          (if (eq schema :true)
-              nil
-              (list
-               (make-instance 'validation-failed-error
-                              :property-name ""
-                              :error-message "Schema :false is always false."))))
-
-         ((utils:empty-object-p schema)
-          nil)
-
-         ((and (utils:object-get "$id" schema) (not ignore-id))
-          (reference:with-pushed-id ((utils:object-get "$id" schema))
-            (validate schema data schema-version t)))
-
-         ((typep schema 'json-schema.utils:object)
-          (loop for property in (utils:object-keys schema)
-                for value = (utils:object-get property schema)
-                appending (handler-case (progn
+                                                        data))
+                                         (:draft7
                                           (draft7 schema
                                                   property
                                                   value
-                                                  data)
-                                          nil)
+                                                  data))
+                                         (:draft6
+                                          (draft6 schema
+                                                  property
+                                                  value
+                                                  data))
+                                         (:draft4
+                                          (draft4 schema
+                                                  property
+                                                  value
+                                                  data)))
+                                       nil)
 
-                            (no-validator-condition (c)
-                              (warn "No validator for field ~S - skipping."
-                                    (slot-value c 'field-name))
-                              nil)
+                         (no-validator-condition (c)
+                           (warn "No validator for field ~S - skipping."
+                                 (slot-value c 'field-name))
+                           nil)
 
-                            (validation-failed-error (error)
-                              (list error))))))))))
+                         (validation-failed-error (error)
+                           (list error))))))))
 
 ;;; Helpers for validators
 
