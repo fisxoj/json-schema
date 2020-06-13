@@ -190,7 +190,29 @@
 
 
 (defun collect-properties (schema data)
-  )
+  (let* ((pattern-properties
+           (when-let ((pattern-properties (utils:object-get "patternProperties" schema)))
+
+             (remove-if-not (lambda (key)
+                              (some (lambda (pattern) (ppcre:scan pattern key))
+                                    (utils:object-keys pattern-properties)))
+                            (utils:object-keys data))))
+
+         (properties
+           (when-let ((properties (utils:object-get "properties" schema)))
+             (utils:object-keys properties)))
+
+         (additional-properties
+           (additional-properties (set-difference data-properties
+                                                  (union schema-properties pattern-properties
+                                                         :test #'string=)
+                                                  :test #'string=)))
+         (unevaluated-properties ))
+
+    (values properties
+            additional-properties
+            pattern-properties
+            unevaluated-properties)))
 
 
 ;;; Validation functions for individaul properties
@@ -725,6 +747,41 @@
   "enum" enum
   "exclusiveMaximum" exclusive-maximum
   "exclusiveMinimum" exclusive-minimum
+  "format" format-validator
+  "items" items
+  "maximum" maximum
+  "maxItems" max-items
+  "maxLength" max-length
+  "maxProperties" max-properties
+  "minimum" minimum
+  "minItems" min-items
+  "minLength" min-length
+  "minProperties" min-properties
+  "multipleOf" multiple-of
+  "not" not-validator
+  "oneOf" one-of
+  "pattern" pattern
+  "patternProperties" pattern-properties
+  "properties" properties
+  "propertyNames" property-names
+  "required" required
+  "type" type-validator
+  "uniqueItems" unique-items)
+
+
+(def-validator draft4
+  "id" noop
+  "$ref" $ref
+  "$schema" noop
+  "additionalItems" additional-items
+  "additionalProperties" additional-properties
+  "allOf" all-of
+  "anyOf" any-of
+  "const" const
+  "contains" contains
+  "default" noop
+  "dependencies" dependencies
+  "enum" enum
   "format" format-validator
   "items" items
   "maximum" maximum

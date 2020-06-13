@@ -117,6 +117,12 @@
       (values "" nil)))
 
 
+(defun draft4-id-fun (schema)
+  (if (typep schema 'utils:object)
+      (utils:object-get "id" schema "")
+      (values "" nil)))
+
+
 (defmacro with-context ((&optional (id-fun ''default-id-fun)) &body body)
   `(let ((*context* (make-context))
          (*id-fun* ,id-fun))

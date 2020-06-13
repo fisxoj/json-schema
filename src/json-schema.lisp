@@ -15,9 +15,13 @@
 
 
 (defun validate (schema data &key (schema-version *schema-version*) (pretty-errors-p t))
-  (reference:with-context ((if (eq schema-version :draft2019-09)
-                               'reference::draft2019-09-id-fun
-                               'reference::default-id-fun))
+  (reference:with-context ((ecase schema-version
+                             (:draft2019-09
+                              'reference::draft2019-09-id-fun)
+                             ((or :draft7 :draft6)
+                              'reference::default-id-fun)
+                             (:draft4
+                              'reference::draft4-id-fun)))
     (reference:with-pushed-context (schema)
       (if-let ((errors (validators:validate schema data schema-version)))
         (values nil (mapcar (if pretty-errors-p #'princ-to-string #'identity) errors))
