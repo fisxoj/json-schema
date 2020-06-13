@@ -356,7 +356,7 @@
     (dex:http-request-not-found (error)
       (declare (ignore error))
       (error 'remote-reference-error
-             :message (format nil "document not found ~S" (get-current-uri))
+             :message "document not found"
              :uri uri))))
 
 
