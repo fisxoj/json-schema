@@ -450,6 +450,19 @@
              data maximum))
 
 
+(defvfun maximum-draft4 maximum
+  (require-type "number")
+
+  (let ((exclusive-p (eq :true (utils:object-get "exclusiveMaximum" schema :false))))
+    (if exclusive-p
+        (condition (< data maximum)
+                   "~d must be strictly less than ~d."
+                   data maximum)
+        (condition (<= data maximum)
+                   "~d must be less than or equal to ~d."
+                   data maximum))))
+
+
 (defvfun max-length length
   (require-type "string")
 
@@ -471,8 +484,21 @@
   (require-type "number")
 
   (condition (>= data minimum)
-             "~d must be greater than or equal to ~d"
+             "~d must be greater than or equal to ~d."
              data minimum))
+
+
+(defvfun minimum-draft4 minimum
+  (require-type "number")
+
+  (let ((exclusive-p (eq :true (utils:object-get "exclusiveMaximum" schema :false))))
+    (if exclusive-p
+        (condition (> data minimum)
+                   "~d must be strictly greater than ~d."
+                   data minimum)
+        (condition (>= data minimum)
+                   "~d must be greater than or equal to ~d."
+                   data minimum))))
 
 
 (defvfun min-items length
@@ -789,11 +815,11 @@
   "enum" enum
   "format" format-validator
   "items" items
-  "maximum" maximum
+  "maximum" maximum-draft4
   "maxItems" max-items
   "maxLength" max-length
   "maxProperties" max-properties
-  "minimum" minimum
+  "minimum" minimum-draft4
   "minItems" min-items
   "minLength" min-length
   "minProperties" min-properties
