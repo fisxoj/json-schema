@@ -101,11 +101,16 @@
       ((utils:empty-object-p schema)
        nil)
 
-      ((and (utils:object-get "$id" schema) (not ignore-id))
-       (reference:with-pushed-id ((utils:object-get "$id" schema))
+      ((and (typep schema 'utils:object)
+            (nth-value 1 (funcall (symbol-function (reference:get-id-fun-for-draft schema-version))
+                                  schema))
+            (not ignore-id))
+
+       (reference:with-pushed-id ((funcall (symbol-function (reference:get-id-fun-for-draft schema-version))
+                                           schema))
          (validate schema data schema-version t)))
 
-      ((typep schema 'json-schema.utils:object)
+      ((typep schema 'utils:object)
        (loop for property in (utils:object-keys schema)
              for value = (utils:object-get property schema)
              appending (handler-case (progn

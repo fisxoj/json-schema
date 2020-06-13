@@ -21,7 +21,8 @@
            #:fetching-not-allowed-error
            #:reference-error
            #:nested-reference-error
-           #:with-pushed-id))
+           #:with-pushed-id
+           #:get-id-fun-for-draft))
 
 (in-package :json-schema.reference)
 
@@ -121,6 +122,18 @@
   (if (typep schema 'utils:object)
       (utils:object-get "id" schema "")
       (values "" nil)))
+
+
+(defun get-id-fun-for-draft (schema-version)
+  "Selects an id function that's appropriate for each schema draft."
+
+  (ecase schema-version
+    (:draft2019-09
+     'draft2019-09-id-fun)
+    ((or :draft7 :draft6)
+     'default-id-fun)
+    (:draft4
+     'draft4-id-fun)))
 
 
 (defmacro with-context ((&optional (id-fun ''default-id-fun)) &body body)

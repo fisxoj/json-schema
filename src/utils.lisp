@@ -42,8 +42,11 @@
 
 
 (defun object-get (key object &optional default)
+  (declare (type string key)
+           (type object object))
+
   (multiple-value-bind (value found-p) (st-json:getjso key object)
-    (values (if found-p value default) found-p)))
+    (values (if found-p value default) (the boolean found-p))))
 
 
 (defun empty-object-p (object)
