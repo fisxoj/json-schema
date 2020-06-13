@@ -3,6 +3,11 @@
 
 (in-package :json-schema/test/draft2019-09)
 
+(defvar +skip-tests+ '(("multipleOf" . (("by number" . ("4.5 is multiple of 1.5"))))
+                       ("unevaluatedProperties" . t)
+                       ("unevaluatedItems" . t)))
+
+
 (test-cases-from-file "additionalItems")
 
 (test-cases-from-file "additionalProperties")

@@ -1,38 +1,32 @@
 (defpackage :json-schema-test-case-helper
   (:use :cl :alexandria :cl-arrows :rove)
+  (:local-nicknames (:utils :json-schema.utils))
   (:export #:test-cases-from-file))
 
 (in-package :json-schema-test-case-helper)
 
+(defvar *current-suite* nil
+  "Keeps track of the current suite of tests being generated.  Equals the filename of the test suite minus the .json extension.")
+
 
 (defun data-of (spec)
-  (st-json:getjso "data" spec)
-  ;; (gethash "data" spec)
-  )
+  (utils:object-get "data" spec))
 
 
 (defun valid-p (spec)
-  (eq (st-json:getjso "valid" spec) :true)
-  ;; (not (eq (gethash "valid" spec) :false))
-  )
+  (eq (utils:object-get "valid" spec) :true))
 
 
 (defun description-of (spec)
-  (st-json:getjso "description" spec)
-  ;; (gethash "description" spec)
-  )
+  (utils:object-get "description" spec))
 
 
 (defun schema-of (spec)
-  (st-json:getjso "schema" spec)
-  ;; (gethash "schema" spec)
-  )
+  (utils:object-get "schema" spec))
 
 
 (defun test-cases-of (spec)
-  (st-json:getjso "tests" spec)
-  ;; (gethash "tests" spec)
-  )
+  (utils:object-get "tests" spec))
 
 
 (defun unhash (data)
@@ -45,23 +39,10 @@
 
     (t data)))
 
-;; (defun unhash (data)
-;;   "Convert the json input of hashes/arrays into forms that are (lisp)readable for codegen."
-
-;;   (typecase data
-;;     (hash-table
-;;      (let (alist)
-;;        (maphash (lambda (k v) (push `(cons ,k ,(unhash v)) alist)) data)
-;;        `(alexandria:alist-hash-table (list ,@alist) :test 'equal)))
-
-;;     (list
-;;      `(list ,@(mapcar #'unhash data)))
-
-;;     (t data)))
-
 
 (defmacro test-cases-from-file (name)
-  (let* ((version-from-package (->> *package*
+  (let* ((*current-suite* name)
+         (version-from-package (->> *package*
                                     package-name
                                     (str:split #\/)
                                     third
@@ -78,11 +59,28 @@
                    (json-schema.parse:parse test-spec-pathname))))))
 
 
-(defun test-case-to-assertion (spec schema-gensym)
-  `(,(if (valid-p spec) 'ok 'ng)
-    (json-schema:validate ,schema-gensym
-                          ,(unhash (data-of spec)))
-    ,(description-of spec)))
+(defun check-test-skip (suite-spec assertion-spec)
+  (flet ((aget (key alist &optional default)
+           (or (cdr (assoc key alist :test #'string=))
+               default)))
+
+    (when (boundp (find-symbol "+SKIP-TESTS+"))
+      (when-let ((suite-skips (aget *current-suite* (symbol-value (find-symbol "+SKIP-TESTS+")))))
+        (or (eq suite-skips t)
+            (let ((group-skips (aget (description-of suite-spec) suite-skips)))
+              (or (eq group-skips t)
+                  (find (description-of assertion-spec) group-skips
+                        :test #'string=))))))))
+
+
+(defun test-case-to-assertion (suite-spec assertion-spec schema-gensym)
+  (if (check-test-skip suite-spec assertion-spec)
+      `(skip ,(description-of assertion-spec))
+
+      `(,(if (valid-p assertion-spec) 'ok 'ng)
+        (json-schema:validate ,schema-gensym
+                              ,(unhash (data-of assertion-spec)))
+        ,(description-of assertion-spec))))
 
 
 (defun spec-to-deftest (spec)
@@ -92,5 +90,5 @@
        (let ((,schema-gensym ,(unhash (schema-of spec))))
 
          ,@(mapcar (lambda (test-spec)
-                     (test-case-to-assertion test-spec schema-gensym))
+                     (test-case-to-assertion spec test-spec schema-gensym))
                    (test-cases-of spec))))))
