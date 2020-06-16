@@ -1,0 +1,126 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+ "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<link rel="stylesheet" href="default.css" type="text/css" />
+<title>json-schema</title>
+<meta name="Author" content="Matt Novenstern <
+
+fisxoj@gmail.com
+
+>" />
+</head>
+<body>
+<div id="id1" class="document"><h1 class="title">json-schema</h1>
+<table class="docinfo" frame="void" rules="none"><col class="docinfo-name" />
+<col class="docinfo-content" />
+<tbody valign="top">
+<tr><th class="docinfo-name">Author</th><td>Matt Novenstern &lt;<a class="reference" href="mailto:fisxoj@gmail.com"><span>fisxoj@gmail.com</span></a>&gt;</td></tr><tr><th class="docinfo-name">Version</th><td>0.1.0</td></tr><tr class="field"><th colspan="1" class="docinfo-name">license:</th><td class="field-body">LGPL</td>
+</tr>
+<tr class="field"><th colspan="1" class="docinfo-name">homepage:</th><td class="field-body"><a class="reference" href="https://fisxoj.github.io/json-schema/"><span>https://fisxoj.github.io/json-schema/</span></a></td>
+</tr>
+</tbody>
+</table>
+<div class="image image-reference"><a class="reference" href="https://travis-ci.org/fisxoj/json-schema"><span><img src="https://travis-ci.org/fisxoj/json-schema.svg?branch=master" alt="Travis CI status badge" /></span></a></div>
+<div class="image image-reference"><a class="reference" href="https://coveralls.io/github/fisxoj/json-schema?branch=master"><span><img src="https://coveralls.io/repos/github/fisxoj/json-schema/badge.svg?branch=master" alt="Coveralls status badge" /></span></a></div>
+<div class="image image-reference"><a class="reference" href="CODE_OF_CONDUCT.md"><span><img src="https://img.shields.io/badge/Contributor%20Covenant-v1.4%20adopted-ff69b4.svg" alt="Contributor Covenant" /></span></a></div>
+<table class="field-list" frame="void" rules="none"><col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th colspan="1" class="field-name">Source:</th><td class="field-body"><a class="reference" href="https://github.com/fisxoj/json-schema"><span>https://github.com/fisxoj/json-schema</span></a></td>
+</tr>
+<tr class="field"><th colspan="1" class="field-name">Docs:</th><td class="field-body"><a class="reference" href="https://fisxoj.github.io/json-schema/"><span>https://fisxoj.github.io/json-schema/</span></a></td>
+</tr>
+</tbody>
+</table>
+<p>json-schema is a validator for drafts 4, 6, 7, and 2019-09 of the <a class="reference" href="https://json-schema.org/"><span>JSON Schema</span></a> standard.  It is (mostly) compliant with the <a class="reference" href="https://github.com/json-schema-org/JSON-Schema-Test-Suite"><span>common test suite</span></a>.  The exceptions are</p>
+<p><strong><span>Draft 2019-09:</span></strong></p>
+<ul>
+<li><p class="first last"><tt class="docutils literal">
+<span class="pre">unevaluatedItems</span></tt> and <tt class="docutils literal">
+<span class="pre">unevaluatedProperties</span></tt> are unimplemented</p>
+</li>
+</ul>
+<p><strong><span>Drafts 4, 6, 7:</span></strong></p>
+<ul>
+<li><p class="first last"><tt class="docutils literal">
+<span class="pre">$ref</span></tt> overrides any sibling keywords</p>
+</li>
+</ul>
+<div id="example" class="section"><h2><a name="example">Example</a></h2>
+<p>The main entry point to the library is <a class="reference ref-function" href="json-schema.html#function-validate"><span class="ref-function">json-schema:validate</span></a>, which takes a schema to validate against, the data to validate against it and a draft version to use for interpreting the schema.  The default version is currently draft7.</p>
+<p><strong><span>Validating a simple type</span></strong></p>
+<p>Passing :</p>
+<pre class="literal-block">
+(json-schema:validate (json-schema.parse:parse "{\"type\":\"integer\"}") 3)
+;; =&gt; T
+;;    NIL
+</pre><p>Failing (note the error messages in the second argument) :</p>
+<pre class="literal-block">
+(json-schema:validate (json-schema.parse:parse "{\"type\":\"integer\",\"maximum\":10}") 13)
+;; =&gt; NIL
+;;    ("13 must be less than or equal to 10")
+
+</pre><p><strong><span>Validating an object</span></strong> :</p>
+<pre class="literal-block">
+(setf schema (json-schema.parse:parse
+           "{\"properties\":{\"foo\\nbar\":{\"type\":\"number\"},\"foo\\\"bar\":{\"type\":\"number\"},\"foo\\\\bar\":{\"type\":\"number\"},\"foo\\rbar\":{\"type\":\"number\"},\"foo\\tbar\":{\"type\":\"number\"},\"foo\\fbar\":{\"type\":\"number\"}}}"))
+</pre><p>Passing :</p>
+<pre class="literal-block">
+(json-schema:validate schema
+  (json-schema.parse:parse
+    "{\"foo\\nbar\":1,\"foo\\\"bar\":1,\"foo\\\\bar\":1,\"foo\\rbar\":1,\"foo\\tbar\":1,\"foo\\fbar\":1}"))
+;; =&gt; T
+;;    NIL
+</pre><p>Failing :</p>
+<pre class="literal-block">
+(json-schema:validate schema
+  (json-schema.parse:parse
+    "{\"foo\\nbar\":\"1\",\"foo\\\"bar\":\"1\",\"foo\\\\bar\":\"1\",\"foo\\rbar\":\"1\",\"foo\\tbar\":\"1\",\"foo\\fbar\":\"1\"}"))
+;; =&gt; NIL
+;; ("got errors validating properties
+;;
+;; Additionally:
+;; - Value 1 is not of type \"number\".
+;; - Value 1 is not of type \"number\".
+;; - Value 1 is not of type \"number\".
+;; - Value 1 is not of type \"number\".
+;; - Value 1 is not of type \"number\".
+;; - Value 1 is not of type \"number\".
+;; ")
+</pre></div>
+<div id="usage-notes" class="section"><h2><a name="usage-notes">Usage Notes</a></h2>
+<div id="decoding-json" class="section"><h3><a name="decoding-json">Decoding JSON</a></h3>
+<p>json-schema operates mostly on <a class="reference ref-class" href="http://www.lispworks.com/reference/HyperSpec/Body/t_hash_t.htm"><span class="ref-class">common-lisp:hash-table</span></a> objects.  It requires them to have the <tt class="docutils literal">
+<span class="pre">:test</span></tt> argument set to <a class="reference ref-function" href="http://www.lispworks.com/reference/HyperSpec/Body/f_equal.htm"><span class="ref-function">common-lisp:equal</span></a>, so that they work with string keys.  Further, it expects <tt class="docutils literal">
+<span class="pre">:true</span></tt> and <tt class="docutils literal">
+<span class="pre">:false</span></tt> as the boolean values and <tt class="docutils literal">
+<span class="pre">:null</span></tt> as the decoded Javascript <tt class="docutils literal">
+<span class="pre">null</span></tt>.  Javascrpit arrays should be rendered as lists.  This behavior is provided behind the scenes by <a class="reference" href="https://marijnhaverbeke.nl/st-json/"><span>st-json</span></a>.  The <a class="reference ref-function" href="json-schema.parse.html#function-parse"><span class="ref-function">json-schema.parse:parse</span></a> function provides this functionality over strings, streams, and pathnames for you.</p>
+</div>
+<div id="network-access" class="section"><h3><a name="network-access">Network access</a></h3>
+<p>JSON Schema allows schemas to reference other documents over the network.  This library will fetch them automatically, by default.  If you don't want this to be allowed, you should set <a class="reference ref-variable" href="json-schema.reference.html#variable-%2Aresolve-remote-references%2A"><span class="ref-variable">json-schema.reference:*resolve-remote-references*</span></a> to <tt class="docutils literal">
+<span class="pre">nil</span></tt>.  If a schema references a remote one, it will raise a <a class="reference ref-class" href="json-schema.reference.html#class-fetching-not-allowed-error"><span class="ref-class">json-schema.reference:fetching-not-allowed-error</span></a> instead of fetching it when fetching references is disallowed.</p>
+</div>
+<div id="reusing-schemas" class="section"><h3><a name="reusing-schemas">Reusing Schemas</a></h3>
+<p>Because of the nature of JSON Schema's references (location-independent references, particularly), schema documents need to be walked when loaded to discover named anchors and ids.  They also may load other schemas.</p>
+<p>If you're reusing a large schema document repeatedly, you might want to cache the resolution context.  Unfortunately, I'm still working on this feature!</p>
+</div>
+</div>
+<div id="packages" class="section"><h2><a name="packages">Packages</a></h2>
+<ul>
+<li><p class="first last"><a class="reference" href="json-schema.utils.html"><span>json-schema.utils</span></a></p>
+</li>
+<li><p class="first last"><a class="reference" href="json-schema.parse.html"><span>json-schema.parse</span></a></p>
+</li>
+<li><p class="first last"><a class="reference" href="json-schema.types.html"><span>json-schema.types</span></a></p>
+</li>
+<li><p class="first last"><a class="reference" href="json-schema.reference.html"><span>json-schema.reference</span></a></p>
+</li>
+</ul>
+</div>
+<hr class ="docutils footer" /><div class="footer">Generated on : Tue, 16 Jun 2020 18:26:33 .
+</div>
+</div>
+</body>
+</html>
