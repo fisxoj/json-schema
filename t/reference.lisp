@@ -1,6 +1,7 @@
 (defpackage :json-schema/test.reference
   (:local-nicknames (:put :json-schema.reference)
-                    (:json :st-json))
+                    (:utils :json-schema.utils)
+                    (:parse :json-schema.parse))
   (:use :cl :rove))
 
 (in-package :json-schema/test.reference)
@@ -54,11 +55,11 @@
 
 (deftest test-context
   ;; (testing "an uncomplicated context"
-  ;;   (let ((simple-ref (json:read-json-from-string
+  ;;   (let ((simple-ref (parse:parse
   ;;                      "{\"components\": {\"key\": 4, \"another\": {\"$ref\": \"#/components/key\"}}}")))
   ;;     (put:with-context ()
   ;;       (put:with-pushed-context (simple-ref))
-  ;;       (let ((resolved (put::resolve (st-json:getjso* "components.another" simple-ref))))
+  ;;       (let ((resolved (put::resolve (utils:object-get "another" (utils:object-get "components" simple-ref)))))
   ;;         (ok (not (null resolved))
   ;;             "can resolve a reference.")
 
@@ -66,11 +67,11 @@
   ;;             "can resolve a simple relative reference to the correct value.")))))
 
   ;; (testing "with an encoded path component"
-  ;;   (let ((simple-ref (json:read-json-from-string
+  ;;   (let ((simple-ref (parse:parse
   ;;                      "{\"components\": {\"~key\": 4, \"another\": {\"$ref\": \"#/components/~0key\"}}}")))
   ;;     (put:with-context ()
   ;;       (put:with-pushed-context (simple-ref))
-  ;;       (let ((resolved (put::resolve (st-json:getjso* "components.another" simple-ref))))
+  ;;       (let ((resolved (put::resolve (utils:object-get "another" (utils:object-get "components" simple-ref)))))
   ;;         (ok (not (null resolved))
   ;;             "can resolve a reference.")
 
@@ -78,7 +79,7 @@
   ;;             "can resolve a simple relative reference to the correct value.")))))
 
   (testing "encoded ref names"
-    (let ((document (json:read-json-from-string "{\"$defs\": {
+    (let ((document (parse:parse "{\"$defs\": {
                 \"tilda~field\": {\"type\": \"integer\"},
                 \"slash/field\": {\"type\": \"integer\"},
                 \"percent%field\": {\"type\": \"integer\"}
@@ -90,17 +91,17 @@
       (put:with-context ()
         (put:with-pushed-context (document)
 
-          (ok (string= (json:getjso "type"
-                                    (put:resolve (json:getjso* "properties.slash" document)))
+          (ok (string= (utils:object-get "type"
+                                         (put:resolve (utils:object-get "slash" (utils:object-get "properties" document))))
                        "integer")
               "can fetch a ref with an encoded slash in it.")
 
-          (ok (string= (json:getjso "type"
-                                    (put:resolve (json:getjso* "properties.tilda" document)))
+          (ok (string= (utils:object-get "type"
+                                         (put:resolve (utils:object-get "tilda" (utils:object-get "properties" document))))
                        "integer")
               "can fetch a ref with an encoded tilda in it.")
 
-          (ok (string= (json:getjso "type"
-                                    (put:resolve (json:getjso* "properties.percent" document)))
+          (ok (string= (utils:object-get "type"
+                                         (put:resolve (utils:object-get "percent" (utils:object-get "properties" document))))
                        "integer")
               "can fetch a ref with an encoded percent sign in it."))))))

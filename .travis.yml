@@ -46,9 +46,9 @@ jobs:
     - env: LISP=abcl
     - env: LISP=ecl
   include:
-    - <<: *test
-      env:
-        - LISP=sbcl-bin COVERALLS=true
+    # - <<: *test
+    #   env:
+    #     - LISP=sbcl-bin COVERALLS=true
     - <<: *test
       env:
         - LISP=ccl-bin
