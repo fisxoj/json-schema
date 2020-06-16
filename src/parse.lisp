@@ -8,7 +8,8 @@
 
 (defun parse (input)
   (flet ((parse (input)
-           (let ((*read-default-float-format* 'double-float))
+           (let ((*read-default-float-format* 'double-float)
+                 (st-json:*decode-objects-as* :hashtable))
              (st-json:read-json input))))
     (etypecase input
       (string

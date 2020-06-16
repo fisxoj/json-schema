@@ -31,7 +31,7 @@
 
 (defun unhash (data)
   (typecase data
-    (st-json:jso
+    (utils:object
      `(json-schema.parse:parse ,(st-json:write-json-to-string data)))
 
     (list
