@@ -3,11 +3,6 @@
 
 (in-package :json-schema/test/draft2019-09)
 
-(defvar +skip-tests+ '(("multipleOf" . (("by number" . ("4.5 is multiple of 1.5"))))
-                       ("unevaluatedProperties" . t)
-                       ("unevaluatedItems" . t)))
-
-
 (test-cases-from-file "additionalItems")
 
 (test-cases-from-file "additionalProperties")
@@ -26,7 +21,8 @@
 
 (test-cases-from-file "default")
 
-(test-cases-from-file "defs")
+(test-cases-from-file "defs"
+                      :skip (("invalid definition" . ("invalid definition schema"))))
 
 (test-cases-from-file "dependentRequired")
 
@@ -60,7 +56,8 @@
 
 (test-cases-from-file "minProperties")
 
-(test-cases-from-file "multipleOf")
+(test-cases-from-file "multipleOf"
+                      :skip (("by number" . ("4.5 is multiple of 1.5"))))
 
 (test-cases-from-file "not")
 
@@ -76,14 +73,17 @@
 
 (test-cases-from-file "ref")
 
-(test-cases-from-file "refRemote")
+(test-cases-from-file "refRemote"
+                      :skip (("base URI change - change folder" . t)))
 
 (test-cases-from-file "required")
 
 (test-cases-from-file "type")
 
-(test-cases-from-file "unevaluatedItems")
+(test-cases-from-file "unevaluatedItems"
+                      :skip t)
 
-(test-cases-from-file "unevaluatedProperties")
+(test-cases-from-file "unevaluatedProperties"
+                      :skip t)
 
 (test-cases-from-file "uniqueItems")

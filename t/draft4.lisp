@@ -3,10 +3,6 @@
 
 (in-package :json-schema/test/draft4)
 
-(defvar +skip-tests+ '(("multipleOf" . (("by number" . ("4.5 is multiple of 1.5"))))
-                       ("minimum" . (("exclusiveMinimum validation" . ("boundary point is invalid"))))
-                       ("ref" . (("ref overrides any sibling keywords" . ("ref valid, maxItems ignored"))))))
-
 (test-cases-from-file "additionalItems")
 
 (test-cases-from-file "additionalProperties")
@@ -35,7 +31,8 @@
 
 (test-cases-from-file "maxProperties")
 
-(test-cases-from-file "minimum")
+(test-cases-from-file "minimum"
+                      :skip (("exclusiveMinimum validation" . ("boundary point is invalid"))))
 
 (test-cases-from-file "minItems")
 
@@ -43,7 +40,8 @@
 
 (test-cases-from-file "minProperties")
 
-(test-cases-from-file "multipleOf")
+(test-cases-from-file "multipleOf"
+                      :skip (("by number" . ("4.5 is multiple of 1.5"))))
 
 (test-cases-from-file "not")
 
@@ -55,7 +53,8 @@
 
 (test-cases-from-file "properties")
 
-(test-cases-from-file "ref")
+(test-cases-from-file "ref"
+                      :skip (("ref overrides any sibling keywords" . ("ref valid, maxItems ignored"))))
 
 (test-cases-from-file "refRemote")
 

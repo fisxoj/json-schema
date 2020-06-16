@@ -5,8 +5,8 @@
 
 (in-package :json-schema-test-case-helper)
 
-(defvar *current-suite* nil
-  "Keeps track of the current suite of tests being generated.  Equals the filename of the test suite minus the .json extension.")
+(defvar *skips* nil
+  "For keeping track of tests to skip.")
 
 
 (defun data-of (spec)
@@ -40,8 +40,8 @@
     (t data)))
 
 
-(defmacro test-cases-from-file (name)
-  (let* ((*current-suite* name)
+(defmacro test-cases-from-file (name &key skip)
+  (let* ((*skips* skip)
          (version-from-package (->> *package*
                                     package-name
                                     (str:split #\/)
@@ -64,13 +64,12 @@
            (or (cdr (assoc key alist :test #'string=))
                default)))
 
-    (when (boundp (find-symbol "+SKIP-TESTS+"))
-      (when-let ((suite-skips (aget *current-suite* (symbol-value (find-symbol "+SKIP-TESTS+")))))
-        (or (eq suite-skips t)
-            (let ((group-skips (aget (description-of suite-spec) suite-skips)))
-              (or (eq group-skips t)
-                  (find (description-of assertion-spec) group-skips
-                        :test #'string=))))))))
+    (when *skips*
+      (or (eq *skips* t) ;; skip all
+          (let ((group-skips (aget (description-of suite-spec) *skips*)))
+            (or (eq group-skips t)
+                (find (description-of assertion-spec) group-skips
+                      :test #'string=)))))))
 
 
 (defun test-case-to-assertion (suite-spec assertion-spec schema-gensym)
