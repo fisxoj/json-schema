@@ -1,6 +1,6 @@
 (defpackage :json-schema/test.utils
   (:local-nicknames (:put :json-schema.utils)
-                    (:json :st-json))
+                    (:parse :json-schema.parse))
   (:use :cl :rove))
 
 (in-package :json-schema/test.utils)
@@ -8,11 +8,11 @@
 
 (deftest object-equal-p
   (testing "simple objects"
-    (let ((object1 (json:read-json-from-string "{\"a\":1, \"b\":[\"r\",\"m\",\"p\"]}"))
-          (object2 (json:read-json-from-string "{\"a\":1, \"b\":[\"r\",\"m\",\"p\"]}"))
-          (object3 (json:read-json-from-string "{\"a\":2, \"b\":[\"r\",\"m\",\"q\"]}"))
-          (object4 (json:read-json-from-string "{\"a\":1, \"b\":[\"r\",\"m\",\"q\"]}"))
-          (object5 (json:read-json-from-string "{\"a\":1, \"b\":[\"r\",\"m\",\"p\"],\"c\":false}")))
+    (let ((object1 (parse:parse "{\"a\":1, \"b\":[\"r\",\"m\",\"p\"]}"))
+          (object2 (parse:parse "{\"a\":1, \"b\":[\"r\",\"m\",\"p\"]}"))
+          (object3 (parse:parse "{\"a\":2, \"b\":[\"r\",\"m\",\"q\"]}"))
+          (object4 (parse:parse "{\"a\":1, \"b\":[\"r\",\"m\",\"q\"]}"))
+          (object5 (parse:parse "{\"a\":1, \"b\":[\"r\",\"m\",\"p\"],\"c\":false}")))
 
       (ok (put:object-equal-p object1 object2)
           "two equal objects are equal.")
