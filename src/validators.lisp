@@ -602,7 +602,7 @@
 
     (condition (null missing-keys)
                "Object is missing the required keys: ~{~a~^, ~}"
-               required-fields)))
+               missing-keys)))
 
 
 (defvfun unevaluated-properties unevaluated-properties
