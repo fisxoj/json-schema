@@ -153,7 +153,7 @@
              (utils:json-array
               (unless allow-arrays
                 (make-instance 'validation-failed-error
-                               :property property-name
+                               :property-name property-name
                                :error-message (format nil "~d is not a valid dependency."
                                               dependency)))
               (unless (every (lambda (dependency-key)
@@ -169,7 +169,7 @@
              (utils:object
               (unless allow-objects
                 (make-instance 'validation-failed-error
-                               :property property-name
+                               :property-name property-name
                                :error-message (format nil "~d is not a valid dependency."
                                               dependency)))
               (when-let ((validation-errors (validate dependency data *schema-version*)))
