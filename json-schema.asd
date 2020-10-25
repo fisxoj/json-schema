@@ -18,6 +18,7 @@
                "cl-ppcre"
                "dexador"
                "function-cache"
+               "local-time"
                "quri"
                "sanity-clause"
                "st-json"
