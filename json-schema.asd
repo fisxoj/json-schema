@@ -4,7 +4,7 @@
   :description "JSON schema validation"
   :author "Matt Novenstern <fisxoj@gmail.com>"
   :license "LGPL"
-  :version "0.1.0"
+  :version "1.0.0"
   :pathname "src"
   :components ((:file "utils")
                (:file "parse")
