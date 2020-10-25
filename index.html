@@ -15,7 +15,7 @@ fisxoj@gmail.com
 <table class="docinfo" frame="void" rules="none"><col class="docinfo-name" />
 <col class="docinfo-content" />
 <tbody valign="top">
-<tr><th class="docinfo-name">Author</th><td>Matt Novenstern &lt;<a class="reference" href="mailto:fisxoj@gmail.com"><span>fisxoj@gmail.com</span></a>&gt;</td></tr><tr><th class="docinfo-name">Version</th><td>0.1.0</td></tr><tr class="field"><th colspan="1" class="docinfo-name">license:</th><td class="field-body">LGPL</td>
+<tr><th class="docinfo-name">Author</th><td>Matt Novenstern &lt;<a class="reference" href="mailto:fisxoj@gmail.com"><span>fisxoj@gmail.com</span></a>&gt;</td></tr><tr><th class="docinfo-name">Version</th><td>1.0.0</td></tr><tr class="field"><th colspan="1" class="docinfo-name">license:</th><td class="field-body">LGPL</td>
 </tr>
 <tr class="field"><th colspan="1" class="docinfo-name">homepage:</th><td class="field-body"><a class="reference" href="https://fisxoj.github.io/json-schema/"><span>https://fisxoj.github.io/json-schema/</span></a></td>
 </tr>
@@ -52,12 +52,12 @@ fisxoj@gmail.com
 <p><strong><span>Validating a simple type</span></strong></p>
 <p>Passing :</p>
 <pre class="literal-block">
-(json-schema:validate (json-schema.parse:parse "{\"type\":\"integer\"}") 3)
+(json-schema:validate 3 :schema (json-schema.parse:parse "{\"type\":\"integer\"}"))
 ;; =&gt; T
 ;;    NIL
 </pre><p>Failing (note the error messages in the second argument) :</p>
 <pre class="literal-block">
-(json-schema:validate (json-schema.parse:parse "{\"type\":\"integer\",\"maximum\":10}") 13)
+(json-schema:validate 13 :schema (json-schema.parse:parse "{\"type\":\"integer\",\"maximum\":10}"))
 ;; =&gt; NIL
 ;;    ("13 must be less than or equal to 10")
 
@@ -67,16 +67,16 @@ fisxoj@gmail.com
            "{\"properties\":{\"foo\\nbar\":{\"type\":\"number\"},\"foo\\\"bar\":{\"type\":\"number\"},\"foo\\\\bar\":{\"type\":\"number\"},\"foo\\rbar\":{\"type\":\"number\"},\"foo\\tbar\":{\"type\":\"number\"},\"foo\\fbar\":{\"type\":\"number\"}}}"))
 </pre><p>Passing :</p>
 <pre class="literal-block">
-(json-schema:validate schema
+(json-schema:validate
   (json-schema.parse:parse
-    "{\"foo\\nbar\":1,\"foo\\\"bar\":1,\"foo\\\\bar\":1,\"foo\\rbar\":1,\"foo\\tbar\":1,\"foo\\fbar\":1}"))
+    "{\"foo\\nbar\":1,\"foo\\\"bar\":1,\"foo\\\\bar\":1,\"foo\\rbar\":1,\"foo\\tbar\":1,\"foo\\fbar\":1}") :schema schema)
 ;; =&gt; T
 ;;    NIL
 </pre><p>Failing :</p>
 <pre class="literal-block">
-(json-schema:validate schema
+(json-schema:validate
   (json-schema.parse:parse
-    "{\"foo\\nbar\":\"1\",\"foo\\\"bar\":\"1\",\"foo\\\\bar\":\"1\",\"foo\\rbar\":\"1\",\"foo\\tbar\":\"1\",\"foo\\fbar\":\"1\"}"))
+    "{\"foo\\nbar\":\"1\",\"foo\\\"bar\":\"1\",\"foo\\\\bar\":\"1\",\"foo\\rbar\":\"1\",\"foo\\tbar\":\"1\",\"foo\\fbar\":\"1\"}") :schema schema)
 ;; =&gt; NIL
 ;; ("got errors validating properties
 ;;
@@ -88,7 +88,10 @@ fisxoj@gmail.com
 ;; - Value 1 is not of type \"number\".
 ;; - Value 1 is not of type \"number\".
 ;; ")
-</pre></div>
+</pre><p><strong><span>Validating a document with a referenced schema</span></strong></p>
+<p>If your data contains a top-level <tt class="docutils literal">
+<span class="pre">$schema</span></tt> key, you don't need to pass a schema along.  It will be fetched and validated against automatically.  This works with, for example, the <a class="reference" href="https://json-schema.org/draft/2019-09/schema"><span>draft2019-09 meta-schema</span></a>.</p>
+</div>
 <div id="usage-notes" class="section"><h2><a name="usage-notes">Usage Notes</a></h2>
 <div id="decoding-json" class="section"><h3><a name="decoding-json">Decoding JSON</a></h3>
 <p>json-schema operates mostly on <a class="reference ref-class" href="http://www.lispworks.com/reference/HyperSpec/Body/t_hash_t.htm"><span class="ref-class">common-lisp:hash-table</span></a> objects.  It requires them to have the <tt class="docutils literal">
@@ -119,7 +122,7 @@ fisxoj@gmail.com
 </li>
 </ul>
 </div>
-<hr class ="docutils footer" /><div class="footer">Generated on : Sun, 13 Sep 2020 21:29:04 .
+<hr class ="docutils footer" /><div class="footer">Generated on : Sun, 25 Oct 2020 06:53:53 .
 </div>
 </div>
 </body>
