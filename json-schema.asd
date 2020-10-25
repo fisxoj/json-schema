@@ -19,6 +19,7 @@
                "dexador"
                "function-cache"
                "local-time"
+               "local-time-duration"
                "quri"
                "sanity-clause"
                "st-json"

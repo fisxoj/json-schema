@@ -32,6 +32,14 @@
       nil)))
 
 
+(defun durationp (value)
+  (handler-case
+      (and (stringp value)
+           (local-time-duration:parse-iso8601-duration value))
+    (esrap:esrap-parse-error ()
+      nil)))
+
+
 (defun emailp (value)
   (and (stringp value)
        (find #\@ value :test 'char=)))
@@ -129,6 +137,7 @@
 (def-checker draft2019-09
   "date" datep
   "date-time" date-time-p
+  "duration" durationp
   "email" emailp
   "hostname" hostnamep
   "idn-email" emailp

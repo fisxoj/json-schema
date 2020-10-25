@@ -91,6 +91,8 @@
 (test-cases-from-file "optional/format/date-time"
                       :skip (("validation of date-time strings" . ("an invalid closing Z after time-zone offset"))))
 
+(test-cases-from-file "optional/format/duration")
+
 (test-cases-from-file "optional/format/email")
 
 (test-cases-from-file "optional/format/hostname")
