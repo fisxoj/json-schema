@@ -95,6 +95,10 @@
 
 (test-cases-from-file "optional/format/json-pointer")
 
+(test-cases-from-file "optional/format/regex")
+
 (test-cases-from-file "optional/format/time")
 
-(test-cases-from-file "optional/format/regex")
+(test-cases-from-file "optional/format/uri")
+
+(test-cases-from-file "optional/format/uri-reference")

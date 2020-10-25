@@ -87,3 +87,20 @@
                       :skip t)
 
 (test-cases-from-file "uniqueItems")
+
+(test-cases-from-file "optional/format/date-time"
+                      :skip (("validation of date-time strings" . ("an invalid closing Z after time-zone offset"))))
+
+(test-cases-from-file "optional/format/email")
+
+(test-cases-from-file "optional/format/hostname")
+
+(test-cases-from-file "optional/format/ipv4")
+
+(test-cases-from-file "optional/format/ipv6")
+
+(test-cases-from-file "optional/format/json-pointer")
+
+(test-cases-from-file "optional/format/uri")
+
+(test-cases-from-file "optional/format/uri-reference")
