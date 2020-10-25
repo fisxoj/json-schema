@@ -37,7 +37,21 @@
     (list
      `(list ,@(mapcar #'unhash data)))
 
-    (t data)))
+    (t
+     data)))
+
+
+(defun spec-to-deftest (spec)
+  (with-gensyms (schema-gensym)
+    (let ((assertions (mapcar (curry 'test-case-to-assertion spec schema-gensym)
+                              (test-cases-of spec))))
+      `(testing ,(description-of spec)
+         ;; If every test case is a skip, don't define the test
+         ;; data since we won't use it, anyway.
+         ,(if (every (lambda (a) (eq (car a) 'skip)) assertions)
+              `(progn ,@assertions)
+              `(let ((,schema-gensym ,(unhash (schema-of spec))))
+                 ,@assertions))))))
 
 
 (defmacro test-cases-from-file (name &key skip)
@@ -72,22 +86,11 @@
                       :test #'string=)))))))
 
 
-(defun test-case-to-assertion (suite-spec assertion-spec schema-gensym)
+(defun test-case-to-assertion (suite-spec schema-gensym assertion-spec)
   (if (check-test-skip suite-spec assertion-spec)
       `(skip ,(description-of assertion-spec))
 
       `(,(if (valid-p assertion-spec) 'ok 'ng)
-        (json-schema:validate ,schema-gensym
-                              ,(unhash (data-of assertion-spec)))
+        (json-schema:validate ,(unhash (data-of assertion-spec))
+                              :schema ,schema-gensym)
         ,(description-of assertion-spec))))
-
-
-(defun spec-to-deftest (spec)
-  (with-gensyms (schema-gensym)
-
-    `(testing ,(description-of spec)
-       (let ((,schema-gensym ,(unhash (schema-of spec))))
-
-         ,@(mapcar (lambda (test-spec)
-                     (test-case-to-assertion spec test-spec schema-gensym))
-                   (test-cases-of spec))))))
