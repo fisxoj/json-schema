@@ -145,6 +145,7 @@
   "ipv6" ip-v6-address-p
   "json-pointer" json-pointer-p
   "regex" regexp
+  "time" timep
   "uri" uri
   "uri-reference" uri-reference)
 
