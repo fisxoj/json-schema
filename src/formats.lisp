@@ -12,6 +12,10 @@
   :test 'string=)
 
 
+(define-constant +unreserved-uri-characters+ (coerce  "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ-._~:@/?!$&'()*+,;=" 'list)
+  :test 'equalp)
+
+
 (defun datep (value)
   (handler-case (local-time:parse-rfc3339-timestring value
                                                      :allow-missing-time-part t)
@@ -25,6 +29,14 @@
                                                      :allow-missing-time-part nil)
     (local-time:invalid-timestring (e)
       (declare (ignore e))
+      nil)))
+
+
+(defun durationp (value)
+  (handler-case
+      (and (stringp value)
+           (local-time-duration:parse-iso8601-duration value))
+    (esrap:esrap-parse-error ()
       nil)))
 
 
@@ -65,7 +77,8 @@
        ;; https://github.com/dlowe-net/local-time/issues/90
        (handler-case (local-time:parse-timestring value
                                                   :allow-missing-date-part t
-                                                  :allow-missing-time-part nil)
+                                                  :allow-missing-time-part nil
+                                                  :fract-time-separators '(#\.))
          (local-time:invalid-timestring (e)
            (declare (ignore e))
            nil))))
@@ -92,6 +105,26 @@
       nil)))
 
 
+(defun uri (value)
+  (handler-case
+      (let ((uri (quri:uri value)))
+        (not (emptyp (quri:uri-scheme uri))))
+    (quri:uri-error ()
+      nil)))
+
+
+(defun uri-reference (value)
+  (handler-case
+      (let ((uri (quri:uri value)))
+        (and
+         (or (zerop (length (quri:uri-path uri)))
+             (member (char (quri:uri-path uri) 0) +unreserved-uri-characters+ :test 'char=))
+         (every (rcurry 'member +unreserved-uri-characters+ :test 'char=)
+                (quri:uri-fragment uri))))
+    (quri:uri-error ()
+      nil)))
+
+
 ;;; draft checkers
 
 (defmacro def-checker (name &rest types-plist)
@@ -104,13 +137,17 @@
 (def-checker draft2019-09
   "date" datep
   "date-time" date-time-p
+  "duration" durationp
   "email" emailp
   "hostname" hostnamep
   "idn-email" emailp
   "ipv4" ip-v4-address-p
   "ipv6" ip-v6-address-p
   "json-pointer" json-pointer-p
-  "regex" regexp)
+  "regex" regexp
+  "time" timep
+  "uri" uri
+  "uri-reference" uri-reference)
 
 
 (def-checker draft7
@@ -123,7 +160,9 @@
   "ipv6" ip-v6-address-p
   "json-pointer" json-pointer-p
   "regex" regexp
-  "time" timep)
+  "time" timep
+  "uri-reference" uri-reference
+  "uri" uri)
 
 
 (def-checker draft6
@@ -134,7 +173,9 @@
   "ipv4" ip-v4-address-p
   "ipv6" ip-v6-address-p
   "json-pointer" json-pointer-p
-  "regex" regexp)
+  "regex" regexp
+  "uri-reference" uri-reference
+  "uri" uri)
 
 
 (def-checker draft4
@@ -145,7 +186,8 @@
   "ipv4" ip-v4-address-p
   "ipv6" ip-v6-address-p
   "json-pointer" json-pointer-p
-  "regex" regexp)
+  "regex" regexp
+  "uri" uri)
 
 
 (def-checker draft3
@@ -158,4 +200,5 @@
   "ipv6" ip-v6-address-p
   "json-pointer" json-pointer-p
   "regex" regexp
-  "time" draft3-timep)
+  "time" draft3-timep
+  "uri" uri)

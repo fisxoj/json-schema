@@ -63,3 +63,15 @@
 (test-cases-from-file "type")
 
 (test-cases-from-file "uniqueItems")
+
+(test-cases-from-file "optional/format/date-time")
+
+(test-cases-from-file "optional/format/email")
+
+(test-cases-from-file "optional/format/hostname")
+
+(test-cases-from-file "optional/format/ipv4")
+
+(test-cases-from-file "optional/format/ipv6")
+
+(test-cases-from-file "optional/format/uri")

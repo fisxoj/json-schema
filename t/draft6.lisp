@@ -93,3 +93,10 @@
 (test-cases-from-file "optional/format/ipv6")
 
 (test-cases-from-file "optional/format/json-pointer")
+
+(test-cases-from-file "optional/format/uri")
+
+(test-cases-from-file "optional/format/uri-reference")
+
+(test-cases-from-file "optional/format/uri-template"
+                      :skip t)

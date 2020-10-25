@@ -10,7 +10,6 @@
            #:unescape
            #:with-pushed-context
            #:get-subspec-by-ref
-           #:ensure-resolved
            #:resolve
            #:get-ref
            #:with-resolved-ref
@@ -441,6 +440,7 @@
   "Resolves a reference schema object to the referred-to schema."
 
   (lookup (make-reference (get-ref ref))))
+
 
 
 (defun collect-subschemas (schema &key (id-fun *id-fun*) current-uri properties-p)

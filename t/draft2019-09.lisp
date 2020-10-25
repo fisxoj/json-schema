@@ -87,3 +87,47 @@
                       :skip t)
 
 (test-cases-from-file "uniqueItems")
+
+(test-cases-from-file "optional/bignum")
+
+(test-cases-from-file "optional/format/date")
+
+(test-cases-from-file "optional/format/date-time")
+
+(test-cases-from-file "optional/format/duration")
+
+(test-cases-from-file "optional/format/email")
+
+(test-cases-from-file "optional/format/hostname")
+
+(test-cases-from-file "optional/format/idn-email"
+                      :skip t)
+
+(test-cases-from-file "optional/format/idn-hostname"
+                      :skip t)
+
+(test-cases-from-file "optional/format/ipv4")
+
+(test-cases-from-file "optional/format/ipv6")
+
+(test-cases-from-file "optional/format/iri"
+                      :skip t)
+
+(test-cases-from-file "optional/format/iri-reference"
+                      :skip t)
+
+(test-cases-from-file "optional/format/json-pointer")
+
+(test-cases-from-file "optional/format/regex")
+
+(test-cases-from-file "optional/format/json-pointer"
+                      :skip t)
+
+(test-cases-from-file "optional/format/time")
+
+(test-cases-from-file "optional/format/uri")
+
+(test-cases-from-file "optional/format/uri-reference")
+
+(test-cases-from-file "optional/format/uri-template"
+                      :skip t)

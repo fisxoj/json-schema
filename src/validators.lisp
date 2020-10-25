@@ -672,6 +672,7 @@
   "enum" enum
   "exclusiveMaximum" exclusive-maximum
   "exclusiveMinimum" exclusive-minimum
+  "format" format-validator
   "if" if-validator
   "items" items
   "maximum" maximum

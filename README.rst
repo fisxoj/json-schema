@@ -33,14 +33,14 @@ The main entry point to the library is :function:`json-schema:validate`, which t
 Passing
 ::
 
-   (json-schema:validate (json-schema.parse:parse "{\"type\":\"integer\"}") 3)
+   (json-schema:validate 3 :schema (json-schema.parse:parse "{\"type\":\"integer\"}"))
    ;; => T
    ;;    NIL
 
 Failing (note the error messages in the second argument)
 ::
 
-   (json-schema:validate (json-schema.parse:parse "{\"type\":\"integer\",\"maximum\":10}") 13)
+   (json-schema:validate 13 :schema (json-schema.parse:parse "{\"type\":\"integer\",\"maximum\":10}"))
    ;; => NIL
    ;;    ("13 must be less than or equal to 10")
 
@@ -54,18 +54,18 @@ Failing (note the error messages in the second argument)
 Passing
 ::
 
-   (json-schema:validate schema
+   (json-schema:validate
      (json-schema.parse:parse
-       "{\"foo\\nbar\":1,\"foo\\\"bar\":1,\"foo\\\\bar\":1,\"foo\\rbar\":1,\"foo\\tbar\":1,\"foo\\fbar\":1}"))
+       "{\"foo\\nbar\":1,\"foo\\\"bar\":1,\"foo\\\\bar\":1,\"foo\\rbar\":1,\"foo\\tbar\":1,\"foo\\fbar\":1}") :schema schema)
    ;; => T
    ;;    NIL
 
 Failing
 ::
 
-   (json-schema:validate schema
+   (json-schema:validate
      (json-schema.parse:parse
-       "{\"foo\\nbar\":\"1\",\"foo\\\"bar\":\"1\",\"foo\\\\bar\":\"1\",\"foo\\rbar\":\"1\",\"foo\\tbar\":\"1\",\"foo\\fbar\":\"1\"}"))
+       "{\"foo\\nbar\":\"1\",\"foo\\\"bar\":\"1\",\"foo\\\\bar\":\"1\",\"foo\\rbar\":\"1\",\"foo\\tbar\":\"1\",\"foo\\fbar\":\"1\"}") :schema schema)
    ;; => NIL
    ;; ("got errors validating properties
    ;;
@@ -77,6 +77,10 @@ Failing
    ;; - Value 1 is not of type \"number\".
    ;; - Value 1 is not of type \"number\".
    ;; ")
+
+**Validating a document with a referenced schema**
+
+If your data contains a top-level ``$schema`` key, you don't need to pass a schema along.  It will be fetched and validated against automatically.  This works with, for example, the `draft2019-09 meta-schema <https://json-schema.org/draft/2019-09/schema>`_.
 
 -----------
 Usage Notes
