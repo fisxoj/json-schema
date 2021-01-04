@@ -1,5 +1,5 @@
 (defpackage :json-schema.parse
-  (:use :cl :alexandria :cl-arrows)
+  (:use :cl :alexandria :arrows)
   (:export
    #:parse))
 

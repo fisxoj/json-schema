@@ -14,7 +14,7 @@
                (:file "validators")
                (:file "json-schema"))
   :depends-on ("alexandria"
-               "cl-arrows"
+               "arrows"
                "cl-ppcre"
                "dexador"
                "function-cache"
