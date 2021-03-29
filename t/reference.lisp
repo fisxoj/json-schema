@@ -6,6 +6,15 @@
 
 (in-package :json-schema/test.reference)
 
+(defmacro with-context ((&key uri-stack references named-references) &body body)
+  (let ((references (or references (make-hash-table :test 'equal)))
+        (named-references (or named-references (make-hash-table :test 'equal))))
+    `(let ((json-schema.reference::*context* (json-schema.reference::make-context
+                                              :uri-stack ,uri-stack
+                                              :references ,references
+                                              :named-references ,named-references)))
+       ,@body)))
+
 
 (deftest test-unescape
   (ok (string= (put:unescape "#/my-name") "#/my-name"))
@@ -46,7 +55,14 @@
                    (put::uri-of another-reference))
           "has a uri.")
       (ok (= (length (put::relative-path-of relative-reference)) 4)
-          "has a list of components for a relative path."))))
+          "has a list of components for a relative path.")))
+
+  ;; https://github.com/fisxoj/json-schema/pull/16
+  (testing "a reference inside a referenced document"
+    (with-context (:uri-stack '("https://somewhere.com/schemas/department.json"))
+      (ok (string= (put::uri-of (put:make-reference "employee.json"))
+                   "https://somewhere.com/schemas/employee.json")
+          "inherits the relative path of the document."))))
 
 
 (deftest test-escape

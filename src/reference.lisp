@@ -304,7 +304,7 @@
 
 
 (defun make-reference (reference-string)
-  (let* ((uri (quri:uri reference-string))
+  (let* ((uri (quri:merge-uris reference-string (get-current-uri)))
          (fragment (quri:uri-fragment uri)))
 
     (make-instance 'reference
