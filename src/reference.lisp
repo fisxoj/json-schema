@@ -1,5 +1,5 @@
 (defpackage json-schema.reference
-  (:use :cl :alexandria :cl-arrows)
+  (:use :cl :alexandria :arrows)
   (:local-nicknames (:utils :json-schema.utils)
                     (:parse :json-schema.parse))
   (:export #:make-reference
