@@ -1,5 +1,5 @@
 (defpackage :json-schema-test-case-helper
-  (:use :cl :alexandria :cl-arrows :rove)
+  (:use :cl :alexandria :arrows :rove)
   (:local-nicknames (:utils :json-schema.utils))
   (:export #:test-cases-from-file))
 
