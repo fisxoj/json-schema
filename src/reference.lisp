@@ -14,14 +14,18 @@
            #:get-ref
            #:with-resolved-ref
            #:*resolve-remote-references*
+           #:*context*
+           #:*id-fun*
+           #:with-pushed-id
+           #:get-id-fun-for-draft
+           #:context
+           #:copy-context
 
            ;; conditions
            #:remote-reference-error
            #:fetching-not-allowed-error
            #:reference-error
-           #:nested-reference-error
-           #:with-pushed-id
-           #:get-id-fun-for-draft))
+           #:nested-reference-error))
 
 (in-package :json-schema.reference)
 
@@ -98,6 +102,10 @@
   (references (make-hash-table :test 'equal) :type hash-table)
   (named-references (make-hash-table :test'equal) :type hash-table))
 
+(defun copy-context (context)
+  (make-context :uri-stack (copy-list (json-schema.reference::context-uri-stack context ))
+                :references (copy-hash-table (json-schema.reference::context-references context))
+                :named-references (copy-hash-table (json-schema.reference::context-named-references context))))
 
 (defun default-id-fun (schema)
   (if (typep schema 'utils:object)
