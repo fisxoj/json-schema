@@ -94,11 +94,11 @@
        nil)
 
       ((and (typep schema 'utils:object)
-            (nth-value 1 (funcall (symbol-function (reference:get-id-fun-for-draft schema-version))
+            (nth-value 1 (funcall (symbol-function (reference:get-id-fun-for-schema-version schema-version))
                                   schema))
             (not ignore-id))
 
-       (reference:with-pushed-id ((funcall (symbol-function (reference:get-id-fun-for-draft schema-version))
+       (reference:with-pushed-id ((funcall (symbol-function (reference:get-id-fun-for-schema-version schema-version))
                                            schema))
          (validate schema data schema-version t)))
 

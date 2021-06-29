@@ -2,18 +2,16 @@
   (:use :cl :alexandria :arrows)
   (:local-nicknames (:utils :json-schema.utils)
                     (:parse :json-schema.parse))
-  (:export #:make-reference
+  (:export #:make-context
            #:with-context
-           #:push-context
            #:relative-reference-p
-           #:escape
-           #:unescape
-           #:with-pushed-context
            #:get-subspec-by-ref
            #:resolve
-           #:get-ref
            #:with-resolved-ref
            #:*resolve-remote-references*
+           #:*http-read-timeout*
+           #:*http-connect-timeout*
+           #:fetch-schema
 
            ;; conditions
            #:remote-reference-error
@@ -21,7 +19,7 @@
            #:reference-error
            #:nested-reference-error
            #:with-pushed-id
-           #:get-id-fun-for-draft))
+           #:get-id-fun-for-schema-version))
 
 (in-package :json-schema.reference)
 
@@ -46,6 +44,14 @@
 
 (defvar *id-fun* 'default-id-fun
   "A default function for getting ids from schemas.  Should return (values id found-p) like gethash.")
+
+
+(defvar *http-read-timeout* 10
+  "Number of seconds before a :class:`remote-reference-error` will be signaled while trying to read a remote schema.")
+
+
+(defvar *http-connect-timeout* 10
+  "Number of seconds before a :class:`remote-reference-error` will be signaled while trying to connect to a remote schema.")
 
 
 (defmacro with-lookup-depth-tracking (&body body)
@@ -92,11 +98,23 @@
                      +max-lookup-depth+))))
 
 
-(defstruct context
+(defstruct (context (:constructor %make-context))
   "A container for all state related to resolving references, namely: a stack of context urls"
+  (root-schema nil :type utils:schema)
+  (schema-version nil :type utils:schema-version)
   (uri-stack nil :type (trivial-types:proper-list string))
   (references (make-hash-table :test 'equal) :type hash-table)
   (named-references (make-hash-table :test'equal) :type hash-table))
+
+
+(defun make-context (schema schema-version)
+  "Given a root schema document :param:`schema` and a json schema version :param:`schema-version`, create a reusable context object that will cache all schema data including remote references that get fetched."
+  (check-type schema utils:schema)
+  (check-type schema-version utils:schema-version)
+
+  (%make-context
+   :root-schema schema
+   :schema-version schema-version))
 
 
 (defun default-id-fun (schema)
@@ -118,13 +136,15 @@
 
 
 (defun draft4-id-fun (schema)
+  "Like the default, but id doesn't have a $ prefix."
   (if (typep schema 'utils:object)
       (utils:object-get "id" schema "")
       (values "" nil)))
 
 
-(defun get-id-fun-for-draft (schema-version)
+(defun get-id-fun-for-schema-version (schema-version)
   "Selects an id function that's appropriate for each schema draft."
+  (check-type schema-version utils:schema-version)
 
   (ecase schema-version
     (:draft2019-09
@@ -135,10 +155,12 @@
      'draft4-id-fun)))
 
 
-(defmacro with-context ((&optional (id-fun ''default-id-fun)) &body body)
-  `(let ((*context* (make-context))
-         (*id-fun* ,id-fun))
-     ,@body))
+(defmacro with-context ((context) &body body)
+  (once-only (context)
+    `(let* ((*context* ,context)
+            (*id-fun* (get-id-fun-for-schema-version (context-schema-version *context*))))
+       (with-pushed-context ((context-root-schema *context*))
+         ,@body))))
 
 
 (defun push-context (schema &optional (id-fun *id-fun*))
@@ -169,11 +191,11 @@
        (pop-context))))
 
 
-(defmacro with-pushed-context ((schema &optional (id-fun '*id-fun*)) &body body)
+(defmacro with-pushed-context ((schema) &body body)
   (once-only (schema)
     `(unwind-protect
           (progn
-            (push-context ,schema ,id-fun)
+            (push-context ,schema)
             ,@body)
        (pop-context))))
 
@@ -322,41 +344,46 @@
   (string= "" (uri-of reference)))
 
 
+(defun fetch-schema (uri)
+  "Fetches a remote document or raises an error depending on the value of :variable:`*resolve-remote-references*`."
+  (if *resolve-remote-references*
+      (handler-case
+          (-> uri
+              (dex:get :read-timeout *http-read-timeout*
+                       :connect-timeout *http-connect-timeout*
+                       :force-binary t)
+              babel:octets-to-string
+              parse:parse)
+        (usocket:connection-refused-error (error)
+          (declare (ignore error))
+          (error 'remote-reference-error
+                 :message "connection refused"
+                 :uri uri))
+        (usocket:timeout-error (error)
+          (declare (ignore error))
+          (error 'remote-reference-error
+                 :message "connection timed out"
+                 :uri uri))
+        (dex:http-request-not-found (error)
+          (declare (ignore error))
+          (error 'remote-reference-error
+                 :message "document not found"
+                 :uri uri)))
+      (error 'fetching-not-allowed-error
+             :uri uri)))
+
+
 (defun fetch-reference (uri)
-  (unless *resolve-remote-references*
-    (error 'fetching-not-allowed-error
-           :uri uri))
-
-  (handler-case
-      (flet ((store-schema (schema)
-               (setf (gethash uri (context-references *context*)) schema)
-               (populate-named-references-for-schema schema
-                                                     :id-fun #'default-id-fun
-                                                     :uri (quri:uri uri))
-               schema))
-
-        (-> uri
-            (dex:get :read-timeout 10
-                     :connect-timeout 10
-                     :force-binary t)
-            babel:octets-to-string
-            parse:parse
-            store-schema))
-    (usocket:connection-refused-error (error)
-      (declare (ignore error))
-      (error 'remote-reference-error
-             :message "connection refused"
-             :uri uri))
-    (usocket:timeout-error (error)
-      (declare (ignore error))
-      (error 'remote-reference-error
-             :message "connection timed out"
-             :uri uri))
-    (dex:http-request-not-found (error)
-      (declare (ignore error))
-      (error 'remote-reference-error
-             :message "document not found"
-             :uri uri))))
+  "Fetches a schema and adds it to the current context as a side effect."
+  (flet ((store-schema (schema)
+           (setf (gethash uri (context-references *context*)) schema)
+           (populate-named-references-for-schema schema
+                                                 :id-fun #'default-id-fun
+                                                 :uri (quri:uri uri))
+           schema))
+    (-> uri
+        fetch-schema
+        store-schema)))
 
 
 (defun get-ref (spec)
