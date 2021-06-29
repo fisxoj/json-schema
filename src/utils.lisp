@@ -9,6 +9,7 @@
 
            #:schema-version
            #:object
+           #:schema
            #:json-boolean
            #:json-null
            #:json-array
@@ -41,6 +42,9 @@
 (deftype json-array ()
   'proper-list)
 
+
+(deftype schema ()
+  '(or object json-boolean))
 
 (defun make-empty-object ()
   (make-hash-table :test 'equal))
