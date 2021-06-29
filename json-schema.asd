@@ -29,21 +29,44 @@
   :in-order-to ((test-op (test-op json-schema/test)))
   :long-description #.(uiop:read-file-string #P"README.rst"))
 
-
-(defsystem json-schema/json-schema-test-suite
+(defsystem json-schema/test-helpers
   :depends-on ("json-schema"
-	       "rove")
+               "rove")
+  :components ((:file "json-schema-test-case-helper")))
+
+(defsystem json-schema/test/draft2019-09
+  :depends-on ("json-schema/test-helpers")
   :pathname "t"
-  :components ((:file "json-schema-test-case-helper")
-               (:file "draft2019-09")
-               (:file "draft7")
-               (:file "draft6")
-               (:file "draft4"))
+  :components ((:file "draft2019-09"))
   :perform (test-op (op c)
                     (declare (ignore op))
 		    (uiop:symbol-call :rove :run c)))
 
-(defsystem json-schema/unit-tests
+(defsystem json-schema/test/draft7
+  :depends-on ("json-schema/test-helpers")
+  :pathname "t"
+  :components ((:file "draft7"))
+  :perform (test-op (op c)
+                    (declare (ignore op))
+		    (uiop:symbol-call :rove :run c)))
+
+(defsystem json-schema/test/draft6
+  :depends-on ("json-schema/test-helpers")
+  :pathname "t"
+  :components ((:file "draft6"))
+  :perform (test-op (op c)
+                    (declare (ignore op))
+		    (uiop:symbol-call :rove :run c)))
+
+(defsystem json-schema/test/draft4
+  :depends-on ("json-schema/test-helpers")
+  :pathname "t"
+  :components ((:file "draft4"))
+  :perform (test-op (op c)
+                    (declare (ignore op))
+		    (uiop:symbol-call :rove :run c)))
+
+(defsystem json-schema/test/unit
   :depends-on ("json-schema"
 	       "rove")
   :pathname "t"
@@ -54,5 +77,5 @@
 		    (uiop:symbol-call :rove :run c)))
 
 (defsystem json-schema/test
-  :in-order-to ((test-op (test-op json-schema/json-schema-test-suite)
+  :in-order-to ((test-op (test-op json-schema/test)
                          (test-op json-schema/unit-tests))))
