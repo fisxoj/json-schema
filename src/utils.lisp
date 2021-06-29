@@ -7,6 +7,7 @@
            #:object-get
            #:empty-object-p
 
+           #:schema-version
            #:object
            #:json-boolean
            #:json-null
@@ -15,6 +16,14 @@
            #:json-pretty-printer))
 
 (in-package :json-schema.utils)
+
+
+(deftype schema-version ()
+  '(member :draft2019-09
+           :draft7
+           :draft6
+           :draft4
+           :draft3))
 
 
 (deftype object ()

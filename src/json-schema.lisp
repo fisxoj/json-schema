@@ -2,7 +2,7 @@
   (:use :cl :alexandria)
   (:local-nicknames (:reference :json-schema.reference)
                     (:validators :json-schema.validators))
-  (:shadowing-import-from :json-schema.validators
+  (:shadowing-import-from :json-schema.utils
                           :schema-version)
   (:export #:validate
            #:*schema-version*
