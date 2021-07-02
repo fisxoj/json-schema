@@ -34,6 +34,7 @@ jobs:
         options: --entrypoint "bash -c 'pip install Flask && cd /app && ./bin/jsonschema_suite serve'"
     env:
       JUNIT_ENABLED: 1
+      JUNIT_REPORT_FILENAME: /home/cl/report.xml
       CL_SOURCE_REGISTRY: (:source-registry (:tree "/__w/json-schema/") :inherit-configuration)
       HOME: /home/cl
       # ASDF_OUTPUT_TRANSLATIONS: /github/home:/home/cl/cache/home:/home/cl:/home/cl/cache/home:/usr/local/share/common-lisp:/home/cl/cache/usr-local
@@ -64,3 +65,7 @@ jobs:
         run: cl-launch -l ${{ matrix.implementation }} -Q '(ql:quickload :json-schema/test/${{ matrix.suite }})'
       - name: Run tests
         run: cl-launch -l ${{ matrix.implementation }} -Q '(asdf:test-system :json-schema/test/${{ matrix.suite }})'
+      - name: Publish Results
+        uses: mikepenz/action-junit-report@v2
+        with:
+          report_paths: '/home/cl/report.xml'
