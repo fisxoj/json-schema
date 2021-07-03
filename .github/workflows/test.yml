@@ -1,0 +1,71 @@
+name: Test
+on: [push]
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        implementation:
+          - sbcl
+          # - ccl
+          # - ecl
+          # - abcl
+        suite:
+          - draft2019-09
+          # - draft7
+          # - draft6
+          # - draft4
+          # - unit
+    name: "${{ matrix.implementation }}: ${{ matrix.suite }}"
+    container:
+      image: clfoundation/cl-devel:2021-06-01
+      options: --user 1000:1000
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: /__w/
+    services:
+      flask:
+        image: python:3.10.0b3-alpine3.14
+        volumes:
+          - /home/runner/work/json-schema/json-schema/JSON-Schema-Test-Suite:/app
+        ports:
+          - 1234:1234
+        options: --entrypoint "bash -c 'pip install Flask && cd /app && ./bin/jsonschema_suite serve'"
+    env:
+      JUNIT_ENABLED: 1
+      JUNIT_REPORT_FILENAME: /home/cl/report.xml
+      CL_SOURCE_REGISTRY: (:source-registry (:tree "/__w/json-schema/") :inherit-configuration)
+      HOME: /home/cl
+      # ASDF_OUTPUT_TRANSLATIONS: /github/home:/home/cl/cache/home:/home/cl:/home/cl/cache/home:/usr/local/share/common-lisp:/home/cl/cache/usr-local
+      # QUICKLISP_SETUP: /home/cl/quicklisp/setup.lisp
+    steps:
+      - name: Route port 1234 to the flask container
+        run: |
+          set -e
+
+          # https://serverfault.com/a/1043031
+          set MY_IP=$(hostname -I)
+          set REMOTEREF_IP=$(python -c "import sys, socket; print(socket.gethostbyname(flask'))")
+          set PORT=1234
+
+          # https://serverfault.com/a/765539
+          iptables -t nat -A PREROUTING -p tcp --dport $PORT -j DNAT --to-destination $REMOTEREF_IP:$PORT
+          iptables -t nat -A POSTROUTING -p tcp -d $REMOTEREF_IP --dport $PORT -j SNAT --to-source $MY_IP
+      - name: Checkout
+        uses: actions/checkout@v1
+        with:
+          submodules: true
+      - name: Cache compiled files
+        uses: actions/cache@v2
+        with:
+          path: /home/cl/.cache
+          key: ${{ hashFiles('json-schema.asd') }}
+      - name: Install dependencies
+        run: cl-launch -l ${{ matrix.implementation }} -Q '(ql:quickload :json-schema/test/${{ matrix.suite }})'
+      - name: Run tests
+        run: cl-launch -l ${{ matrix.implementation }} -Q '(asdf:test-system :json-schema/test/${{ matrix.suite }})'
+      - name: Publish Results
+        uses: mikepenz/action-junit-report@v2
+        with:
+          report_paths: '/home/cl/report.xml'

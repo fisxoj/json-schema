@@ -7,7 +7,9 @@
            #:object-get
            #:empty-object-p
 
+           #:schema-version
            #:object
+           #:schema
            #:json-boolean
            #:json-null
            #:json-array
@@ -15,6 +17,14 @@
            #:json-pretty-printer))
 
 (in-package :json-schema.utils)
+
+
+(deftype schema-version ()
+  '(member :draft2019-09
+           :draft7
+           :draft6
+           :draft4
+           :draft3))
 
 
 (deftype object ()
@@ -32,6 +42,9 @@
 (deftype json-array ()
   'proper-list)
 
+
+(deftype schema ()
+  '(or object json-boolean))
 
 (defun make-empty-object ()
   (make-hash-table :test 'equal))
