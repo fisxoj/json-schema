@@ -534,9 +534,15 @@
   (let ((errors-for-schema (loop for sub-schema in sub-schemas
                                  collecting (validate sub-schema data))))
 
-    (condition (some #'null errors-for-schema)
-               "~a was not valid under any given schema."
-               data)
+    (sub-errors (unless (some #'null errors-for-schema)
+                  errors-for-schema)
+                "~a was not valid under any given schema."
+                (if (hash-table-p data)
+                  (format nil "{~{~a~^,~}}"
+                          (loop for k being the hash-keys of data
+                                for n below 10
+                                collect k))
+                  data))
 
     (condition (= 1 (length (remove-if-not #'null errors-for-schema)))
                "~a was valid for more than one given schema."
