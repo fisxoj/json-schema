@@ -1,5 +1,5 @@
 (defpackage json-schema.reference
-  (:use :cl :alexandria :cl-arrows)
+  (:use :cl :alexandria :arrows)
   (:local-nicknames (:utils :json-schema.utils)
                     (:parse :json-schema.parse))
   (:export #:make-reference
@@ -304,7 +304,7 @@
 
 
 (defun make-reference (reference-string)
-  (let* ((uri (quri:uri reference-string))
+  (let* ((uri (quri:merge-uris reference-string (get-current-uri)))
          (fragment (quri:uri-fragment uri)))
 
     (make-instance 'reference
