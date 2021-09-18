@@ -32,7 +32,7 @@
 
 (defsystem json-schema/json-schema-test-suite
   :depends-on ("json-schema"
-	       "rove")
+               "rove")
   :pathname "t"
   :components ((:file "json-schema-test-case-helper")
                (:file "draft2019-09")
@@ -41,17 +41,17 @@
                (:file "draft4"))
   :perform (test-op (op c)
                     (declare (ignore op))
-		    (uiop:symbol-call :rove :run c)))
+                    (uiop:symbol-call :rove :run c)))
 
 (defsystem json-schema/unit-tests
   :depends-on ("json-schema"
-	       "rove")
+               "rove")
   :pathname "t"
   :components ((:file "utils")
                (:file "reference"))
   :perform (test-op (op c)
                     (declare (ignore op))
-		    (uiop:symbol-call :rove :run c)))
+                    (uiop:symbol-call :rove :run c)))
 
 (defsystem json-schema/test
   :in-order-to ((test-op (test-op json-schema/json-schema-test-suite)
