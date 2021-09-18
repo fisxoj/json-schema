@@ -63,7 +63,7 @@
   ;; https://github.com/fisxoj/json-schema/pull/16
   (testing "a reference inside a referenced document"
     (with-context (:uri-stack '("https://somewhere.com/schemas/department.json"))
-      (ok (string= (put::uri-of (put:make-reference "employee.json"))
+      (ok (string= (put::uri-of (put::make-reference "employee.json"))
                    "https://somewhere.com/schemas/employee.json")
           "inherits the relative path of the document."))))
 
