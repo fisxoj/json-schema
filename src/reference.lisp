@@ -4,6 +4,8 @@
                     (:parse :json-schema.parse))
   (:export #:make-context
            #:with-context
+           #:context-schema-version
+           #:context-root-schema
            #:relative-reference-p
            #:get-subspec-by-ref
            #:resolve
