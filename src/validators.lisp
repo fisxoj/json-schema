@@ -9,14 +9,6 @@
 
 (in-package :json-schema.validators)
 
-(deftype schema-version ()
-  '(member :draft2019-09
-           :draft7
-           :draft6
-           :draft4
-           :draft3))
-
-
 (defparameter *schema-version* :draft7)
 
 
@@ -86,7 +78,7 @@
 
 (defun validate (schema data &optional (schema-version *schema-version*) ignore-id)
   (declare (optimize space speed))
-  (check-type schema-version schema-version)
+  (check-type schema-version utils:schema-version)
 
   (let ((*schema-version* schema-version))
     (cond
@@ -102,11 +94,11 @@
        nil)
 
       ((and (typep schema 'utils:object)
-            (nth-value 1 (funcall (symbol-function (reference:get-id-fun-for-draft schema-version))
+            (nth-value 1 (funcall (symbol-function (reference:get-id-fun-for-schema-version schema-version))
                                   schema))
             (not ignore-id))
 
-       (reference:with-pushed-id ((funcall (symbol-function (reference:get-id-fun-for-draft schema-version))
+       (reference:with-pushed-id ((funcall (symbol-function (reference:get-id-fun-for-schema-version schema-version))
                                            schema))
          (validate schema data schema-version t)))
 
