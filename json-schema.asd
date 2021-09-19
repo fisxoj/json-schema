@@ -3,8 +3,8 @@
 (defsystem json-schema
   :description "JSON schema validation"
   :author "Matt Novenstern <fisxoj@gmail.com>"
-  :license "LGPL"
-  :version "1.0.2"
+  :license "LLGPL"
+  :version "2.0.0"
   :pathname "src"
   :components ((:file "utils")
                (:file "parse")
