@@ -91,7 +91,6 @@ Contexts
 ~~~~~~~~
 
 A context is a reusable set of state that contains all of the fetched network resources (if your schema references external resources) and resolved ids.  By storing that all, you can reuse the validation context multiple times without fetching/resolving everything again.
-
 ::
    (ql:quickload '(trivial-benchmark json-schema))
 
