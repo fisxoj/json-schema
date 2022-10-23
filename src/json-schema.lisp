@@ -28,7 +28,7 @@ The third return value is a :class:`json-schema.reference::context`, which conta
                      (reference:fetch-schema (json-schema.utils:object-get "$schema" data))))
          (context (or context (reference:make-context
                                (or schema (reference:fetch-schema (json-schema.utils:object-get "$schema" data)))
-                               schema schema-version))))
+                               schema-version))))
     (reference:with-context (context)
       (if-let ((errors (validators:validate
                         (reference:context-root-schema context)
